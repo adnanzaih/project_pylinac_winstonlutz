@@ -79,6 +79,8 @@ class ImageManager(list):
 
 class WinstonLutz:
     """Class for performing a Winston-Lutz test of the radiation isocenter."""
+
+    # this line isnt really doing anything?
     images: ImageManager
 
     def __init__(self, directory: str, use_filenames: bool = False):
@@ -317,22 +319,22 @@ class WinstonLutz:
         rms = np.sqrt(x_sag**2+y_sag**2+z_sag**2)
 
         # plot the axis deviation
-        if ax is None:
-            ax = plt.subplot(111)
-        ax.plot(angles, z_sag, 'bo', label='In/Out', ls='-.')
-        ax.plot(angles, x_sag, 'm^', label='Left/Right', ls='-.')
-        if item not in (COUCH, COLLIMATOR):
-            ax.plot(angles, y_sag, 'r*', label='Up/Down', ls='-.')
-        ax.plot(angles, rms, 'g+', label='RMS', ls='-')
-        ax.set_title(title)
-        ax.set_ylabel('mm')
-        ax.set_xlabel(f"{item} angle")
-        ax.set_xticks(np.arange(0, 361, 45))
-        ax.set_xlim([-15, 375])
-        ax.grid(True)
-        ax.legend(numpoints=1)
-        if show:
-            plt.show()
+ #       if ax is None:
+ #           ax = plt.subplot(111)
+ #       ax.plot(angles, z_sag, 'bo', label='In/Out', ls='-.')
+ #       ax.plot(angles, x_sag, 'm^', label='Left/Right', ls='-.')
+ #       if item not in (COUCH, COLLIMATOR):
+ #           ax.plot(angles, y_sag, 'r*', label='Up/Down', ls='-.')
+ #       ax.plot(angles, rms, 'g+', label='RMS', ls='-')
+ #       ax.set_title(title)
+ #       ax.set_ylabel('mm')
+ #       ax.set_xlabel(f"{item} angle")
+ #       ax.set_xticks(np.arange(0, 361, 45))
+ #       ax.set_xlim([-15, 375])
+ #       ax.grid(True)
+ #       ax.legend(numpoints=1)
+ #       if show:
+ #           plt.show()
 
     def _get_images(self, axis: tuple=(GANTRY,)) -> Tuple[float, list]:
         if isinstance(axis, str):
@@ -421,7 +423,7 @@ class WinstonLutz:
 
         # set titles
         fig.suptitle(f"{axis} images", fontsize=14, y=1)
-        plt.tight_layout()
+        #plt.tight_layout()
         if show:
             plt.show()
 
@@ -439,26 +441,26 @@ class WinstonLutz:
 
     def plot_summary(self, show: bool=True):
         """Plot a summary figure showing the gantry sag and wobble plots of the three axes."""
-        plt.figure(figsize=(11, 9))
-        grid = (3, 6)
-        gantry_sag_ax = plt.subplot2grid(grid, (0, 0), colspan=3)
-        self._plot_deviation(GANTRY, gantry_sag_ax, show=False)
-        epid_sag_ax = plt.subplot2grid(grid, (0, 3), colspan=3)
-        self._plot_deviation(EPID, epid_sag_ax, show=False)
-        if self._get_images((COLLIMATOR, REFERENCE))[0] > 1:
-            coll_sag_ax = plt.subplot2grid(grid, (1, 0), colspan=3)
-            self._plot_deviation(COLLIMATOR, coll_sag_ax, show=False)
-        if self._get_images((COUCH, REFERENCE))[0] > 1:
-            couch_sag_ax = plt.subplot2grid(grid, (1, 3), colspan=3)
-            self._plot_deviation(COUCH, couch_sag_ax, show=False)
+       # plt.figure(figsize=(11, 9))
+       # grid = (3, 6)
+       # gantry_sag_ax = plt.subplot2grid(grid, (0, 0), colspan=3)
+       # self._plot_deviation(GANTRY, gantry_sag_ax, show=False)
+       # epid_sag_ax = plt.subplot2grid(grid, (0, 3), colspan=3)
+       # self._plot_deviation(EPID, epid_sag_ax, show=False)
+       # if self._get_images((COLLIMATOR, REFERENCE))[0] > 1:
+       #     coll_sag_ax = plt.subplot2grid(grid, (1, 0), colspan=3)
+       #     self._plot_deviation(COLLIMATOR, coll_sag_ax, show=False)
+       # if self._get_images((COUCH, REFERENCE))[0] > 1:
+       #     couch_sag_ax = plt.subplot2grid(grid, (1, 3), colspan=3)
+       #     self._plot_deviation(COUCH, couch_sag_ax, show=False)
 
-        for axis, axnum in zip((GANTRY, COLLIMATOR, COUCH), (0, 2, 4)):
-            if self._get_images((axis, REFERENCE))[0] > 1:
-                ax = plt.subplot2grid(grid, (2, axnum), colspan=2)
-                self.plot_axis_images(axis=axis, ax=ax, show=False)
-        if show:
-            plt.tight_layout()
-            plt.show()
+       # for axis, axnum in zip((GANTRY, COLLIMATOR, COUCH), (0, 2, 4)):
+       #     if self._get_images((axis, REFERENCE))[0] > 1:
+       #         ax = plt.subplot2grid(grid, (2, axnum), colspan=2)
+       #         self.plot_axis_images(axis=axis, ax=ax, show=False)
+       # if show:
+       #     plt.tight_layout()
+       #     plt.show()
 
     def save_summary(self, filename: str, **kwargs):
         """Save the summary image."""
@@ -524,15 +526,23 @@ class WinstonLutz:
         self.save_summary(data, figsize=(10, 10))
         canvas.add_image(image_data=data, location=(2, 3), dimensions=(18, 18))
         if notes is not None:
-            canvas.add_text(text="Notes:", location=(1, 4.5), font_size=14)
+            canvas.add_text(text="Notes:", location=(1, 4.5), font_size=8)
             canvas.add_text(text=notes, location=(1, 4))
         # add more pages showing individual axis images
-        for ax in (GANTRY, COLLIMATOR, COUCH, COMBO):
+        #for ax in (GANTRY, COLLIMATOR, COUCH, COMBO):
+        for ax in (COUCH, COMBO):
+            if self._contains_axis_images(ax):
+                #canvas.add_new_page()
+                data2 = io.BytesIO()
+                self.save_images(data2, axis=ax, figsize=(25, 25))
+                canvas.add_image(data2, location=(0, 5), dimensions=(18, 19))
+
+        for ax in (COUCH, COLLIMATOR):
             if self._contains_axis_images(ax):
                 canvas.add_new_page()
-                data = io.BytesIO()
-                self.save_images(data, axis=ax, figsize=(10, 10))
-                canvas.add_image(data, location=(2, 7), dimensions=(18, 18))
+                data3 = io.BytesIO()
+                self.save_images(data3, axis=ax, figsize=(25, 25))
+                canvas.add_image(data3, location=(0, 5), dimensions=(18, 19))
 
         canvas.finish()
 
@@ -762,19 +772,25 @@ class WLImage(image.LinacDicomImage):
         clear_fig : bool
             Whether to clear the figure first before drawing.
         """
+
         ax = super().plot(ax=ax, show=False, clear_fig=clear_fig)
-        ax.plot(self.field_cax.x, self.field_cax.y, 'gs', ms=8)
-        ax.plot(self.bb.x, self.bb.y, 'ro', ms=8)
-        ax.plot(self.epid.x, self.epid.y, 'b+', ms=8)
+        ax.plot(self.field_cax.x, self.field_cax.y, 'gs', ms=4)
+        ax.plot(self.bb.x, self.bb.y, 'ro', ms=4)
+        ax.plot(self.epid.x, self.epid.y, 'b+', ms=4)
         ax.set_ylim([self.rad_field_bounding_box[0], self.rad_field_bounding_box[1]])
         ax.set_xlim([self.rad_field_bounding_box[2], self.rad_field_bounding_box[3]])
-        ax.set_yticklabels([])
-        ax.set_xticklabels([])
-        ax.set_title(self.file)
-        ax.set_xlabel(f"G={self.gantry_angle:.0f}, B={self.collimator_angle:.0f}, P={self.couch_angle:.0f}")
-        ax.set_ylabel(f"CAX to BB: {self.cax2bb_distance:3.2f}mm")
+        #ax.set_yticklabels([])
+        #ax.set_xticklabels([])
+        #ax.set_title(self.file,fontsize=6)
+        ax.set_xlabel(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{self.couch_angle:.0f}", fontsize=8)
+        ax.yaxis.set_label_position("right")
+        ax.set_ylabel(f"CAX to BB: {self.cax2bb_distance:3.2f}mm \n {self.file}", fontsize=8)
+        plt.tight_layout()  # this was added by Adnan
+        
         if show:
-            plt.show()
+           #plt.tight_layout()
+           plt.show()
+           
         return ax
 
     def save_plot(self, filename: str, **kwargs):

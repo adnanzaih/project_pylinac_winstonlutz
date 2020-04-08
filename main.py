@@ -2,11 +2,12 @@
 
 from pylinac import WinstonLutz
 
-my_directory = 'N:/MedicalPhysics/Quality Control Program/Treatment/Weekly/Winston-Lutz/Unit 01/2020_03_16/Z20190814'
+my_directory = '/Users/adnanhafeez/Documents/TBCC Work/PyLinac Project/Data/WL Data/u3/2019_11_29/QA Winston-Lutz U3'
 wl = WinstonLutz(my_directory)
 
 #results
 # plot all the images
 wl.plot_images()
+#print(wl.bb_shift_instructions())
 # print to PDF
-wl.publish_pdf('mywl.pdf')
+wl.publish_pdf('test.pdf')

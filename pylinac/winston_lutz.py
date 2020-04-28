@@ -24,6 +24,7 @@ import math
 import os.path as osp
 from typing import Union, List, Tuple
 
+
 import argue
 import matplotlib.pyplot as plt
 import numpy as np
@@ -428,14 +429,14 @@ class WinstonLutz:
             images = self.images
 
         # create plots
-        max_num_images = math.ceil(len(images)/4)
-        fig, axes = plt.subplots(nrows=max_num_images, ncols=4)
+        max_num_images = math.ceil(len(images)/5)
+        fig, axes = plt.subplots(nrows=max_num_images, ncols=5)
         for mpl_axis, wl_image in zip_longest(axes.flatten(), images):
             plot_image(wl_image, mpl_axis)
 
         # set titles
-        fig.suptitle(f"{axis}", fontsize=14, y=1)
-        #plt.tight_layout()
+        fig.suptitle(f"{axis}", fontsize=8, y=1)
+        plt.tight_layout()
         if show:
             plt.show()
 
@@ -477,7 +478,7 @@ class WinstonLutz:
     def save_summary(self, filename: str, **kwargs):
         """Save the summary image."""
         self.plot_summary(show=False)
-        plt.tight_layout()
+        #plt.tight_layout()
         plt.savefig(filename, **kwargs)
 
     def results(self) -> str:
@@ -547,15 +548,15 @@ class WinstonLutz:
             if self._contains_axis_images(ax):
                 #canvas.add_new_page()
                 data2 = io.BytesIO()
-                self.save_images(data2, axis=ax, figsize=(25, 25))
-                canvas.add_image(data2, location=(1, 10), dimensions=(12, 13))
+                self.save_images(data2, axis=ax)
+                canvas.add_image(data2, location=(0, 7), dimensions=(20,15))
 
-        for ax in (COUCH, COLLIMATOR):
-            if self._contains_axis_images(ax):
-                #canvas.add_new_page()
-                data3 = io.BytesIO()
-                self.save_images(data3, axis=ax, figsize=(5, 5))
-                canvas.add_image(data3, location=(13, 10), dimensions=(12, 13))
+        # for ax in (COUCH, COLLIMATOR):
+        #     if self._contains_axis_images(ax):
+        #         #canvas.add_new_page()
+        #         data3 = io.BytesIO()
+        #         self.save_images(data3, axis=ax, figsize=(10, 10))
+        #         canvas.add_image(data3, location=(1, 0.5), dimensions=(13, 11))
 
         canvas.finish()
 
@@ -787,6 +788,7 @@ class WLImage(image.LinacDicomImage):
         """
 
         ax = super().plot(ax=ax, show=False, clear_fig=clear_fig)
+
         ax.plot(self.field_cax.x, self.field_cax.y, 'gs', ms=4)
         ax.plot(self.bb.x, self.bb.y, 'ro', ms=4)
         ax.plot(self.epid.x, self.epid.y, 'b+', ms=4)
@@ -795,13 +797,17 @@ class WLImage(image.LinacDicomImage):
         #ax.set_yticklabels([])
         #ax.set_xticklabels([])
         #ax.set_title(self.file,fontsize=6)
-        ax.set_xlabel(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}", fontsize=8)
+        ax.set_xlabel(f"\u0394(mm) = {((self.field_cax.x-self.bb.x)/self.dpmm):3.2f} \n G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}", fontsize=8)
         ax.yaxis.set_label_position("right")
-        ax.set_ylabel(f"CAX to BB: {self.cax2bb_distance:3.2f}mm \n {self.file}", fontsize=8)
+        ax.set_ylabel(f"\u0394(mm) = {((self.field_cax.y-self.bb.y)/self.dpmm):3.2f} \n CAX to BB: {self.cax2bb_distance:3.2f}mm \n {self.file}", fontsize=8)
+
+        #print(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}","CAX to BB, X coord", (self.field_cax.x-self.bb.x)/self.dpmm)
+        #print(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}","CAX to BB, Y coord", (self.field_cax.y - self.bb.y) / self.dpmm)
+
         plt.tight_layout()  # this was added by Adnan
         
         if show:
-           #plt.tight_layout()
+           plt.tight_layout()
            plt.show()
            
         return ax
@@ -809,6 +815,7 @@ class WLImage(image.LinacDicomImage):
     def save_plot(self, filename: str, **kwargs):
         """Save the image plot to file."""
         self.plot(show=False)
+        plt.subplots_adjust(left=3, right=3, bottom=3, top=3)
         plt.savefig(filename, **kwargs)
 
     @property
@@ -829,7 +836,7 @@ class WLImage(image.LinacDicomImage):
         if G0 and B0 and not P0:
             return COUCH
         elif G0 and P0 and not B0:
-            return COLLIMATOR
+            return COMBO  #return COLLIMATOR
         elif P0 and B0 and not G0:
             return GANTRY
         elif P0 and B0 and G0:

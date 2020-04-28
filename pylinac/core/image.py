@@ -322,11 +322,13 @@ class BaseImage:
             Whether to clear the prior items on the figure before plotting.
         """
         if ax is None:
-            fig, ax = plt.subplots()
+            fig, ax = plt.subplots(figsize=(10,10))
+            plt.subplots_adjust(left=10, right=10, top=10, bottom=10)
         if clear_fig:
             plt.clf()
         ax.imshow(self.array, cmap=get_dicom_cmap(), **kwargs)
         if show:
+
             plt.show()
         return ax
 

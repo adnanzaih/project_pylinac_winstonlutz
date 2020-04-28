@@ -2,7 +2,7 @@
 
 from pylinac import WinstonLutz
 
-my_directory = '/Users/adnanhafeez/Documents/TBCC Work/PyLinac Project/Data/WL Data/u3/2020_02_19/QA Winston-Lutz U3'
+my_directory = '/Users/adnanhafeez/Documents/TBCC Work/PyLinac Project/Data/WL Data/u1/2019_12_23/Z20190814'
 wl = WinstonLutz(my_directory)
 
 #results

@@ -73,7 +73,7 @@ class PylinacCanvas:
                 textobj.textLine(line)
         self.canvas.drawText(textobj)
 
-    def add_image(self, image_data: io.BytesIO, location: Sequence, dimensions: Sequence, preserve_aspect_ratio: bool=True):
+    def add_image(self, image_data: io.BytesIO, location: Sequence, dimensions: Sequence, preserve_aspect_ratio: bool=False):
         image_data.seek(0)
         image = ImageReader(Image.open(image_data))
         self.canvas.drawImage(image, location[0]*cm, location[1]*cm, width=dimensions[0]*cm,

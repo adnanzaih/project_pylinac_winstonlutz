@@ -38,9 +38,9 @@ from .core import pdf
 from .core.utilities import is_close, open_path
 
 GANTRY = 'Gantry'
-COLLIMATOR = 'Collimator'
+COLLIMATOR = ''
 COUCH = 'Couch'
-COMBO = 'Combo'
+COMBO = 'All Images'
 EPID = 'Epid'
 REFERENCE = 'Reference'
 ALL = 'All'
@@ -230,7 +230,12 @@ class WinstonLutz:
         x_dir = 'LEFT' if sv.x < 0 else 'RIGHT'
         y_dir = 'UP' if sv.y > 0 else 'DOWN'
         z_dir = 'IN' if sv.z < 0 else 'OUT'
-        move = f"{x_dir} {abs(sv.x):2.2f}mm; {y_dir} {abs(sv.y):2.2f}mm; {z_dir} {abs(sv.z):2.2f}mm"
+
+        if sv.x > 0.10 or sv.y > 0.10 or sv.z > 0.10:
+            move = f"\033[0;30;41m {x_dir} {abs(sv.x):2.2f}mm; {y_dir} {abs(sv.y):2.2f}mm; {z_dir} {abs(sv.z):2.2f}mm"
+        else:
+            move = f"\033[0;30;42m {x_dir} {abs(sv.x):2.2f}mm; {y_dir} {abs(sv.y):2.2f}mm; {z_dir} {abs(sv.z):2.2f}mm"
+
         if all(val is not None for val in [couch_vrt, couch_lat, couch_lng]):
             new_lat = round(couch_lat + sv.x/10, 2)
             new_vrt = round(couch_vrt + sv.y/10, 2)
@@ -274,7 +279,14 @@ class WinstonLutz:
             The metric of distance to use.
         """
         if metric == 'max':
-            return max(image.cax2bb_distance for image in self.images)
+            maxpositive = abs(max(image.cax2bb_distance for image in self.images))
+            minnegative = abs(min(image.cax2bb_distance for image in self.images))
+            if maxpositive > minnegative:
+                return max(image.cax2bb_distance for image in self.images)
+            else:
+               return min(image.cax2bb_distance for image in self.images)
+
+            #return max(image.cax2bb_distance for image in self.images)
         elif metric == 'median':
             return np.median([image.cax2bb_distance for image in self.images])
 
@@ -422,7 +434,7 @@ class WinstonLutz:
             plot_image(wl_image, mpl_axis)
 
         # set titles
-        fig.suptitle(f"{axis} images", fontsize=14, y=1)
+        fig.suptitle(f"{axis}", fontsize=14, y=1)
         #plt.tight_layout()
         if show:
             plt.show()
@@ -514,13 +526,14 @@ class WinstonLutz:
                 f'Number of images: {len(self.images)}',
                 f'Maximum distance to BB (mm): {self.cax2bb_distance("max"):2.2f}',
                 f'Median distances to BB (mm): {self.cax2bb_distance("median"):2.2f}',
+                f'3D Target Positions (mm): {self.bb_shift_instructions()}',
                 f'Gantry 3D isocenter diameter (mm): {self.gantry_iso_size:2.2f}',
                 ]
         if self._contains_axis_images(COLLIMATOR):
             text.append(f'Collimator 2D isocenter diameter (mm): {self.collimator_iso_size:2.2f}')
         if self._contains_axis_images(COUCH):
             text.append(f'Couch 2D isocenter diameter (mm): {self.couch_iso_size:2.2f}')
-        canvas.add_text(text=text, location=(10, 25.5))
+        canvas.add_text(text=text, location=(1, 25.5))
         # draw summary image on 1st page
         data = io.BytesIO()
         self.save_summary(data, figsize=(10, 10))
@@ -535,14 +548,14 @@ class WinstonLutz:
                 #canvas.add_new_page()
                 data2 = io.BytesIO()
                 self.save_images(data2, axis=ax, figsize=(25, 25))
-                canvas.add_image(data2, location=(0, 5), dimensions=(18, 19))
+                canvas.add_image(data2, location=(1, 10), dimensions=(12, 13))
 
         for ax in (COUCH, COLLIMATOR):
             if self._contains_axis_images(ax):
-                canvas.add_new_page()
+                #canvas.add_new_page()
                 data3 = io.BytesIO()
-                self.save_images(data3, axis=ax, figsize=(25, 25))
-                canvas.add_image(data3, location=(0, 5), dimensions=(18, 19))
+                self.save_images(data3, axis=ax, figsize=(5, 5))
+                canvas.add_image(data3, location=(13, 10), dimensions=(12, 13))
 
         canvas.finish()
 
@@ -782,7 +795,7 @@ class WLImage(image.LinacDicomImage):
         #ax.set_yticklabels([])
         #ax.set_xticklabels([])
         #ax.set_title(self.file,fontsize=6)
-        ax.set_xlabel(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{self.couch_angle:.0f}", fontsize=8)
+        ax.set_xlabel(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}", fontsize=8)
         ax.yaxis.set_label_position("right")
         ax.set_ylabel(f"CAX to BB: {self.cax2bb_distance:3.2f}mm \n {self.file}", fontsize=8)
         plt.tight_layout()  # this was added by Adnan

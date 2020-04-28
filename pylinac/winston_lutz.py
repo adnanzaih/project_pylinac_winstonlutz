@@ -232,10 +232,7 @@ class WinstonLutz:
         y_dir = 'UP' if sv.y > 0 else 'DOWN'
         z_dir = 'IN' if sv.z < 0 else 'OUT'
 
-        if sv.x > 0.10 or sv.y > 0.10 or sv.z > 0.10:
-            move = f"\033[0;30;41m {x_dir} {abs(sv.x):2.2f}mm; {y_dir} {abs(sv.y):2.2f}mm; {z_dir} {abs(sv.z):2.2f}mm"
-        else:
-            move = f"\033[0;30;42m {x_dir} {abs(sv.x):2.2f}mm; {y_dir} {abs(sv.y):2.2f}mm; {z_dir} {abs(sv.z):2.2f}mm"
+        move = f"{x_dir} {abs(sv.x):2.2f}mm; {y_dir} {abs(sv.y):2.2f}mm; {z_dir} {abs(sv.z):2.2f}mm"
 
         if all(val is not None for val in [couch_vrt, couch_lat, couch_lng]):
             new_lat = round(couch_lat + sv.x/10, 2)
@@ -434,6 +431,7 @@ class WinstonLutz:
         for mpl_axis, wl_image in zip_longest(axes.flatten(), images):
             plot_image(wl_image, mpl_axis)
 
+
         # set titles
         fig.suptitle(f"{axis}", fontsize=8, y=1)
         plt.tight_layout()
@@ -549,7 +547,7 @@ class WinstonLutz:
                 #canvas.add_new_page()
                 data2 = io.BytesIO()
                 self.save_images(data2, axis=ax)
-                canvas.add_image(data2, location=(0, 7), dimensions=(20,15))
+                canvas.add_image(data2, location=(1, 12), dimensions=(10,10))
 
         # for ax in (COUCH, COLLIMATOR):
         #     if self._contains_axis_images(ax):
@@ -799,7 +797,7 @@ class WLImage(image.LinacDicomImage):
         #ax.set_title(self.file,fontsize=6)
         ax.set_xlabel(f"\u0394(mm) = {((self.field_cax.x-self.bb.x)/self.dpmm):3.2f} \n G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}", fontsize=8)
         ax.yaxis.set_label_position("right")
-        ax.set_ylabel(f"\u0394(mm) = {((self.field_cax.y-self.bb.y)/self.dpmm):3.2f} \n CAX to BB: {self.cax2bb_distance:3.2f}mm \n {self.file}", fontsize=8)
+        ax.set_ylabel(f"\u0394(mm) = {((self.field_cax.y-self.bb.y)/self.dpmm):3.2f} \n CAX to BB: {self.cax2bb_distance:3.2f}mm", fontsize=8)
 
         #print(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}","CAX to BB, X coord", (self.field_cax.x-self.bb.x)/self.dpmm)
         #print(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}","CAX to BB, Y coord", (self.field_cax.y - self.bb.y) / self.dpmm)
@@ -815,7 +813,7 @@ class WLImage(image.LinacDicomImage):
     def save_plot(self, filename: str, **kwargs):
         """Save the image plot to file."""
         self.plot(show=False)
-        plt.subplots_adjust(left=3, right=3, bottom=3, top=3)
+
         plt.savefig(filename, **kwargs)
 
     @property

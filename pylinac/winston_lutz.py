@@ -28,7 +28,7 @@ from typing import Union, List, Tuple
 import argue
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy import ndimage, optimize
+from scipy import ndimage, optimize, linalg
 from skimage import measure
 
 from .core import image
@@ -217,20 +217,32 @@ class WinstonLutz:
 
     @property
     def bb_shift_vector(self) -> Vector:
-        """The shift necessary to place the BB at the radiation isocenter"""
-        vs = [img.cax2bb_vector3d for img in self.images]
-        # only include the values that are clinically significant; rules out values that are along the beam axis
-        xs = np.mean([v.x for v in vs if (0.02 < v.x or v.x < -0.02)])
-        ys = np.mean([v.y for v in vs if (0.02 < v.y or v.y < -0.02)])
-        zs = np.mean([v.z for v in vs if (0.02 < v.z or v.z < -0.02)])
-        return Vector(-xs, -ys, -zs)
+        """The shift necessary to place the BB at the radiation isocenter.
+               The values are in the coordinates defined in the documentation.
+               The shift is based on the paper by Low et al. See online documentation for more.
+               """
+        A = np.empty([2 * len(self.images), 3])
+        epsilon = np.empty([2 * len(self.images), 1])
+        for idx, img in enumerate(self.images):
+            g = img.gantry_angle
+            c = img.couch_angle_varian_scale
+            A[2 * idx:2 * idx + 2, :] = np.array([[-cos(c), -sin(c), 0],
+                                                  [-cos(g) * sin(c), cos(g) * cos(c), -sin(g)],
+                                                  ])  # equation 6 (minus delta)
+            epsilon[2 * idx:2 * idx + 2] = np.array([[img.cax2bb_vector.y], [img.cax2bb_vector.x]])  # equation 7
+
+        B = linalg.pinv(A)
+        delta = B.dot(epsilon)  # equation 9
+        return Vector(x=delta[1][0], y=-delta[0][0], z=-delta[2][0])
 
     def bb_shift_instructions(self, couch_vrt: float=None, couch_lng: float=None, couch_lat: float=None) -> str:
         """A string describing how to shift the BB to the radiation isocenter"""
         sv = self.bb_shift_vector
         x_dir = 'LEFT' if sv.x < 0 else 'RIGHT'
-        y_dir = 'UP' if sv.y > 0 else 'DOWN'
-        z_dir = 'IN' if sv.z < 0 else 'OUT'
+        y_dir = 'IN' if sv.y > 0 else 'OUT'
+        z_dir = 'UP' if sv.z > 0 else 'DOWN'
+
+
 
         move = f"{x_dir} {abs(sv.x):2.2f}mm; {y_dir} {abs(sv.y):2.2f}mm; {z_dir} {abs(sv.z):2.2f}mm"
 
@@ -240,6 +252,12 @@ class WinstonLutz:
             new_lng = round(couch_lng - sv.z/10, 2)
             move += f"\nNew couch coordinates (mm): VRT: {new_vrt:3.2f}; LNG: {new_lng:3.2f}; LAT: {new_lat:3.2f}"
         return move
+
+
+
+    def adnan_test(self):
+        return 5
+
 
     @argue.options(axis=(GANTRY, COLLIMATOR, COUCH, EPID, COMBO), value=('all', 'range'))
     def axis_rms_deviation(self, axis: str=GANTRY, value: str='all'):
@@ -525,8 +543,9 @@ class WinstonLutz:
                 f'Number of images: {len(self.images)}',
                 f'Maximum distance to BB (mm): {self.cax2bb_distance("max"):2.2f}',
                 f'Median distances to BB (mm): {self.cax2bb_distance("median"):2.2f}',
-                f'3D Target Positions (mm): {self.bb_shift_instructions()}',
-                f'Gantry 3D isocenter diameter (mm): {self.gantry_iso_size:2.2f}',
+                f'3D Target Positions (mm): {self.bb_shift_instructions()}'
+
+
                 ]
         if self._contains_axis_images(COLLIMATOR):
             text.append(f'Collimator 2D isocenter diameter (mm): {self.collimator_iso_size:2.2f}')
@@ -547,7 +566,7 @@ class WinstonLutz:
                 #canvas.add_new_page()
                 data2 = io.BytesIO()
                 self.save_images(data2, axis=ax)
-                canvas.add_image(data2, location=(1, 12), dimensions=(10,10))
+                canvas.add_image(data2, location=(1, 5), dimensions=(15,15))
 
         # for ax in (COUCH, COLLIMATOR):
         #     if self._contains_axis_images(ax):
@@ -738,6 +757,15 @@ class WLImage(image.LinacDicomImage):
         p2.z = self.bb_z_offset
         l = Line(p1, p2)
         return l
+
+    @property
+    def couch_angle_varian_scale(self):
+        """The couch angle converted from IEC 61217 scale to "Varian" scale. Note that any new Varian machine uses 61217."""
+        #  convert to Varian scale per Low paper scale
+        if super().couch_angle > 250:
+            return 2 * 270 - super().couch_angle
+        else:
+            return 180 - super().couch_angle
 
     @property
     def cax2bb_vector(self) -> Vector:

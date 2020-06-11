@@ -4,7 +4,7 @@ from pylinac import WinstonLutz
 
 from adnan.adnan import adnan_code
 
-my_directory = '/Users/adnanhafeez/Documents/TBCC Work/PyLinac Project/Data/WL Data/u1/2019_12_23/Z20190814'
+my_directory = '/Users/adnanhafeez/Documents/TBCC Work/PyLinac Project/Data/WL Data/u6/2020_03_16/Z20150323'
 wl = WinstonLutz(my_directory)
 
 #results

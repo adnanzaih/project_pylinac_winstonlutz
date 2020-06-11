@@ -1,7 +1,5 @@
 """The Winston-Lutz module loads and processes EPID images that have acquired Winston-Lutz type images.
-
 Features:
-
 * **Couch shift instructions** - After running a WL test, get immediate feedback on how to shift the couch.
   Couch values can also be passed in and the new couch values will be presented so you don't have to do that pesky conversion.
   "Do I subtract that number or add it?"
@@ -27,6 +25,7 @@ from typing import Union, List, Tuple
 
 import argue
 import matplotlib.pyplot as plt
+from scipy.ndimage import gaussian_filter
 import numpy as np
 from scipy import ndimage, optimize, linalg
 from skimage import measure
@@ -93,25 +92,16 @@ class WinstonLutz:
         use_filenames: bool
             Whether to try to use the file name to determine axis values.
             Useful for Elekta machines that do not include that info in the DICOM data.
-
         Examples
         --------
         Run the demo:
-
             >>> WinstonLutz.run_demo()
-
         Load a directory with Winston-Lutz EPID images::
-
             >>> wl = WinstonLutz('path/to/directory')
-
         Load from a zip file::
-
             >>> wl = WinstonLutz.from_zip('path/to/images.zip')
-
         Or use the demo images provided::
-
             >>> wl = WinstonLutz.from_demo_images()
-
         Attributes
         ----------
         images : :class:`~pylinac.winston_lutz.ImageManager` instance
@@ -127,7 +117,6 @@ class WinstonLutz:
     @classmethod
     def from_zip(cls, zfile: str, use_filenames: bool=False):
         """Instantiate from a zip file rather than a directory.
-
         Parameters
         ----------
         zfile : str
@@ -143,7 +132,6 @@ class WinstonLutz:
     @classmethod
     def from_url(cls, url: str, use_filenames: bool = False):
         """Instantiate from a URL.
-
         Parameters
         ----------
         url : str
@@ -238,9 +226,9 @@ class WinstonLutz:
     def bb_shift_instructions(self, couch_vrt: float=None, couch_lng: float=None, couch_lat: float=None) -> str:
         """A string describing how to shift the BB to the radiation isocenter"""
         sv = self.bb_shift_vector
-        x_dir = 'LEFT' if sv.x < 0 else 'RIGHT'
-        y_dir = 'IN' if sv.y > 0 else 'OUT'
-        z_dir = 'UP' if sv.z > 0 else 'DOWN'
+        x_dir = 'LEFT -' if sv.x < 0 else 'RIGHT +'
+        y_dir = 'IN +' if sv.y > 0 else 'OUT -'
+        z_dir = 'UP +' if sv.z < 0 else 'DOWN -'
 
 
 
@@ -262,7 +250,6 @@ class WinstonLutz:
     @argue.options(axis=(GANTRY, COLLIMATOR, COUCH, EPID, COMBO), value=('all', 'range'))
     def axis_rms_deviation(self, axis: str=GANTRY, value: str='all'):
         """The RMS deviations of a given axis/axes.
-
         Parameters
         ----------
         axis : ('Gantry', 'Collimator', 'Couch', 'Epid', 'Combo'}
@@ -288,7 +275,6 @@ class WinstonLutz:
 
     def cax2bb_distance(self, metric: str='max'):
         """The distance in mm between the CAX and BB for all images according to the given metric.
-
         Parameters
         ----------
         metric : {'max', 'median'}
@@ -308,7 +294,6 @@ class WinstonLutz:
 
     def cax2epid_distance(self, metric: str='max'):
         """The distance in mm between the CAX and EPID center pixel for all images according to the given metric.
-
         Parameters
         ----------
         metric : {'max', 'median'}
@@ -322,7 +307,6 @@ class WinstonLutz:
     @argue.options(item=(GANTRY, EPID, COLLIMATOR, COUCH))
     def _plot_deviation(self, item: str, ax: plt.Axes=None, show: bool=True):
         """Helper function: Plot the sag in Cartesian coordinates.
-
         Parameters
         ----------
         item : {'gantry', 'epid', 'collimator', 'couch'}
@@ -373,10 +357,8 @@ class WinstonLutz:
     @argue.options(axis=(GANTRY, COLLIMATOR, COUCH, COMBO))
     def plot_axis_images(self, axis: str=GANTRY, show: bool=True, ax: plt.Axes=None):
         """Plot all CAX/BB/EPID positions for the images of a given axis.
-
         For example, axis='Couch' plots a reference image, and all the BB points of the other
         images where the couch was moving.
-
         Parameters
         ----------
         axis : {'Gantry', 'Collimator', 'Couch', 'Combo'}
@@ -413,9 +395,7 @@ class WinstonLutz:
     @argue.options(axis=(GANTRY, COLLIMATOR, COUCH, COMBO, ALL))
     def plot_images(self, axis: str=ALL, show: bool=True):
         """Plot a grid of all the images acquired.
-
         Four columns are plotted with the titles showing which axis that column represents.
-
         Parameters
         ----------
         axis : {'Gantry', 'Collimator', 'Couch', 'Combo', 'All'}
@@ -447,6 +427,7 @@ class WinstonLutz:
         max_num_images = math.ceil(len(images)/5)
         fig, axes = plt.subplots(nrows=max_num_images, ncols=5)
         for mpl_axis, wl_image in zip_longest(axes.flatten(), images):
+            #plt.figure(str(wl_image))
             plot_image(wl_image, mpl_axis)
 
 
@@ -459,7 +440,6 @@ class WinstonLutz:
     @argue.options(axis=(GANTRY, COLLIMATOR, COUCH, COMBO, ALL))
     def save_images(self, filename: str, axis: str=ALL, **kwargs):
         """Save the figure of `plot_images()` to file. Keyword arguments are passed to `matplotlib.pyplot.savefig()`.
-
         Parameters
         ----------
         filename : str
@@ -516,7 +496,6 @@ class WinstonLutz:
 
     def publish_pdf(self, filename: str, notes: Union[str, List[str]]=None, open_file: bool=False, metadata: dict=None):
         """Publish (print) a PDF containing the analysis, images, and quantitative results.
-
         Parameters
         ----------
         filename : (str, file-like object}
@@ -613,7 +592,6 @@ class WLImage(image.LinacDicomImage):
         """Clean the edges of the image to be near the background level."""
         def has_noise(self, window_size):
             """Helper method to determine if there is spurious signal at any of the image edges.
-
             Determines if the min or max of an edge is within 10% of the baseline value and trims if not.
             """
             near_min, near_max = np.percentile(self.array, [5, 99.5])
@@ -634,7 +612,6 @@ class WLImage(image.LinacDicomImage):
 
     def _find_field_centroid(self) -> Tuple[Point, List]:
         """Find the centroid of the radiation field based on a 50% height threshold.
-
         Returns
         -------
         p
@@ -642,7 +619,7 @@ class WLImage(image.LinacDicomImage):
         edges
             The bounding box of the field, plus a small margin.
         """
-        min, max = np.percentile(self.array, [5, 99.9])
+        min, max = np.percentile(gaussian_filter(self.array,sigma=6), [5, 99.9])
         threshold_img = self.as_binary((max - min)/2 + min)
         # clean single-pixel noise from outside field
         cleaned_img = ndimage.binary_erosion(threshold_img)
@@ -655,17 +632,18 @@ class WLImage(image.LinacDicomImage):
         p = Point(x=coords[-1], y=coords[0])
         return p, edges
 
+
+
     def _find_bb(self) -> Point:
         """Find the BB within the radiation field. Iteratively searches for a circle-like object
         by lowering a low-pass threshold value until found.
-
         Returns
         -------
         Point
             The weighted-pixel value location of the BB.
         """
         # get initial starting conditions
-        hmin, hmax = np.percentile(self.array, [5, 99.9])
+        hmin, hmax = np.percentile(gaussian_filter(self.array, sigma=6), [5, 99.9])
         spread = hmax - hmin
         max_thresh = hmax
         lower_thresh = hmax - spread / 1.5
@@ -692,12 +670,15 @@ class WLImage(image.LinacDicomImage):
             else:
                 found = True
 
+
         # determine the center of mass of the BB
         inv_img = image.load(self.array)
         # we invert so BB intensity increases w/ attenuation
         inv_img.check_inversion_by_histogram(percentiles=(0.01, 50, 99.99))
         bb_rprops = measure.regionprops(bw_bb_img, intensity_image=inv_img)[0]
+
         return Point(bb_rprops.weighted_centroid[1], bb_rprops.weighted_centroid[0])
+
 
     @property
     def epid(self) -> Point:
@@ -739,7 +720,6 @@ class WLImage(image.LinacDicomImage):
     def cax_line_projection(self) -> Line:
         """The projection of the field CAX through space around the area of the BB.
         Used for determining gantry isocenter size.
-
         Returns
         -------
         Line
@@ -763,9 +743,10 @@ class WLImage(image.LinacDicomImage):
         """The couch angle converted from IEC 61217 scale to "Varian" scale. Note that any new Varian machine uses 61217."""
         #  convert to Varian scale per Low paper scale
         if super().couch_angle > 250:
-            return 2 * 270 - super().couch_angle
+            #return 2 * 270 - super().couch_angle
+            return 360 - super().couch_angle
         else:
-            return 180 - super().couch_angle
+            return 360 - super().couch_angle
 
     @property
     def cax2bb_vector(self) -> Vector:
@@ -802,7 +783,6 @@ class WLImage(image.LinacDicomImage):
     def plot(self, ax=None, show=True, clear_fig=False):
         """Plot the image, zoomed-in on the radiation field, along with the detected
         BB location and field CAX location.
-
         Parameters
         ----------
         ax : None, matplotlib Axes instance
@@ -815,14 +795,14 @@ class WLImage(image.LinacDicomImage):
 
         ax = super().plot(ax=ax, show=False, clear_fig=clear_fig)
 
-        ax.plot(self.field_cax.x, self.field_cax.y, 'gs', ms=4)
-        ax.plot(self.bb.x, self.bb.y, 'ro', ms=4)
+        #ax.plot(self.field_cax.x, self.field_cax.y, 'gs', ms=4)
+        ax.plot(self.bb.x, self.bb.y, 'r+', ms=4)
         ax.plot(self.epid.x, self.epid.y, 'b+', ms=4)
         ax.set_ylim([self.rad_field_bounding_box[0], self.rad_field_bounding_box[1]])
         ax.set_xlim([self.rad_field_bounding_box[2], self.rad_field_bounding_box[3]])
         #ax.set_yticklabels([])
         #ax.set_xticklabels([])
-        #ax.set_title(self.file,fontsize=6)
+        ax.set_title(self.file,fontsize=6)
         ax.set_xlabel(f"\u0394(mm) = {((self.field_cax.x-self.bb.x)/self.dpmm):3.2f} \n G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}", fontsize=8)
         ax.yaxis.set_label_position("right")
         ax.set_ylabel(f"\u0394(mm) = {((self.field_cax.y-self.bb.y)/self.dpmm):3.2f} \n CAX to BB: {self.cax2bb_distance:3.2f}mm", fontsize=8)
@@ -830,12 +810,11 @@ class WLImage(image.LinacDicomImage):
         #print(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}","CAX to BB, X coord", (self.field_cax.x-self.bb.x)/self.dpmm)
         #print(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}","CAX to BB, Y coord", (self.field_cax.y - self.bb.y) / self.dpmm)
 
-        plt.tight_layout()  # this was added by Adnan
-        
+
         if show:
            plt.tight_layout()
            plt.show()
-           
+
         return ax
 
     def save_plot(self, filename: str, **kwargs):
@@ -847,9 +826,7 @@ class WLImage(image.LinacDicomImage):
     @property
     def variable_axis(self) -> str:
         """The axis that is varying.
-
         There are five types of images:
-
         * Reference : All axes are at 0.
         * Gantry: All axes but gantry at 0.
         * Collimator : All axes but collimator at 0.

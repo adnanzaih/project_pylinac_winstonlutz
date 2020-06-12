@@ -22,6 +22,7 @@ import math
 import os.path as osp
 from typing import Union, List, Tuple
 from textwrap import wrap
+from scipy.ndimage import gaussian_filter
 
 import argue
 import matplotlib.pyplot as plt
@@ -37,12 +38,12 @@ from .core import pdf
 from .core.utilities import is_close, open_path
 
 GANTRY = 'Gantry'
-COLLIMATOR = 'Collimator'
+COLLIMATOR = ''
 COUCH = 'Couch'
-GB_COMBO = 'GB Combo'
-GBP_COMBO = 'GBP Combo'
+COMBO = 'All Images'
 EPID = 'Epid'
 REFERENCE = 'Reference'
+ALL = 'All'
 
 
 class ImageManager(list):
@@ -180,9 +181,9 @@ class WinstonLutz:
     def gantry_coll_iso_size(self) -> float:
         """The diameter of the 3D gantry isocenter size in mm *including collimator and gantry/coll combo images*.
         Images where the couch!=0 are excluded."""
-        num_gantry_like_images = self._get_images((GANTRY, COLLIMATOR, GB_COMBO, REFERENCE))[0]
+        num_gantry_like_images = self._get_images((GANTRY, COLLIMATOR, COMBO, REFERENCE))[0]
         if num_gantry_like_images > 1:
-            return self._minimize_axis((GANTRY, COLLIMATOR, GB_COMBO)).fun * 2
+            return self._minimize_axis((GANTRY, COLLIMATOR, COMBO)).fun * 2
         else:
             return 0
 
@@ -251,9 +252,9 @@ class WinstonLutz:
             The current couch lateral position in cm.
         """
         sv = self.bb_shift_vector
-        x_dir = 'LEFT' if sv.x < 0 else 'RIGHT'
-        y_dir = 'IN' if sv.y > 0 else 'OUT'
-        z_dir = 'UP' if sv.z > 0 else 'DOWN'
+        x_dir = 'LEFT -' if sv.x < 0 else 'RIGHT +'
+        y_dir = 'IN +' if sv.y > 0 else 'OUT -'
+        z_dir = 'UP +' if sv.z < 0 else 'DOWN -'
         move = f"{x_dir} {abs(sv.x):2.2f}mm; {y_dir} {abs(sv.y):2.2f}mm; {z_dir} {abs(sv.z):2.2f}mm"
         if all(val is not None for val in [couch_vrt, couch_lat, couch_lng]):
             new_lat = round(couch_lat + sv.x/10, 2)
@@ -262,7 +263,7 @@ class WinstonLutz:
             move += f"\nNew couch coordinates (mm): VRT: {new_vrt:3.2f}; LNG: {new_lng:3.2f}; LAT: {new_lat:3.2f}"
         return move
 
-    @argue.options(axis=(GANTRY, COLLIMATOR, COUCH, EPID, GBP_COMBO), value=('all', 'range'))
+    @argue.options(axis=(GANTRY, COLLIMATOR, COUCH, EPID, COMBO), value=('all', 'range'))
     def axis_rms_deviation(self, axis: str=GANTRY, value: str='all') -> float:
         """The RMS deviations of a given axis/axes.
         Parameters
@@ -294,7 +295,14 @@ class WinstonLutz:
             The metric of distance to use.
         """
         if metric == 'max':
-            return max(image.cax2bb_distance for image in self.images)
+            maxpositive = abs(max(image.cax2bb_distance for image in self.images))
+            minnegative = abs(min(image.cax2bb_distance for image in self.images))
+            if maxpositive > minnegative:
+                return max(image.cax2bb_distance for image in self.images)
+            else:
+                return min(image.cax2bb_distance for image in self.images)
+
+            # return max(image.cax2bb_distance for image in self.images)
         elif metric == 'median':
             return np.median([image.cax2bb_distance for image in self.images])
 
@@ -336,20 +344,20 @@ class WinstonLutz:
         rms = np.sqrt(xz_sag**2+y_sag**2)
 
         # plot the axis deviation
-        if ax is None:
-            ax = plt.subplot(111)
-        ax.plot(angles, y_sag, 'bo', label='Y-axis', ls='-.')
-        ax.plot(angles, xz_sag, 'm^', label='X/Z-axis', ls='-.')
-        ax.plot(angles, rms, 'g+', label='RMS', ls='-')
-        ax.set_title(title)
-        ax.set_ylabel('mm')
-        ax.set_xlabel(f"{item} angle")
-        ax.set_xticks(np.arange(0, 361, 45))
-        ax.set_xlim([-15, 375])
-        ax.grid(True)
-        ax.legend(numpoints=1)
-        if show:
-            plt.show()
+        # if ax is None:
+        #     ax = plt.subplot(111)
+        # ax.plot(angles, y_sag, 'bo', label='Y-axis', ls='-.')
+        # ax.plot(angles, xz_sag, 'm^', label='X/Z-axis', ls='-.')
+        # ax.plot(angles, rms, 'g+', label='RMS', ls='-')
+        # ax.set_title(title)
+        # ax.set_ylabel('mm')
+        # ax.set_xlabel(f"{item} angle")
+        # ax.set_xticks(np.arange(0, 361, 45))
+        # ax.set_xlim([-15, 375])
+        # ax.grid(True)
+        # ax.legend(numpoints=1)
+        # if show:
+        #     plt.show()
 
     def _get_images(self, axis: tuple=(GANTRY,)) -> Tuple[float, list]:
         if isinstance(axis, str):
@@ -357,7 +365,7 @@ class WinstonLutz:
         images = [image for image in self.images if image.variable_axis in axis]
         return len(images), images
 
-    @argue.options(axis=(GANTRY, COLLIMATOR, COUCH, GBP_COMBO))
+    @argue.options(axis=(GANTRY, COLLIMATOR, COUCH, COMBO))
     def plot_axis_images(self, axis: str=GANTRY, show: bool=True, ax: plt.Axes=None):
         """Plot all CAX/BB/EPID positions for the images of a given axis.
         For example, axis='Couch' plots a reference image, and all the BB points of the other
@@ -395,7 +403,7 @@ class WinstonLutz:
         if show:
             plt.show()
 
-    @argue.options(axis=(GANTRY, COLLIMATOR, COUCH, GBP_COMBO, GB_COMBO))
+    @argue.options(axis=(GANTRY, COLLIMATOR, COUCH, COMBO, ALL))
     def plot_images(self, axis: str=GANTRY, show: bool=True):
         """Plot a grid of all the images acquired.
         Four columns are plotted with the titles showing which axis that column represents.
@@ -421,28 +429,25 @@ class WinstonLutz:
             images = [image for image in self.images if image.variable_axis in (COLLIMATOR, REFERENCE)]
         elif axis == COUCH:
             images = [image for image in self.images if image.variable_axis in (COUCH, REFERENCE)]
-        elif axis == GB_COMBO:
-            images = [image for image in self.images if image.variable_axis in (GB_COMBO, GANTRY, COLLIMATOR, REFERENCE)]
-        elif axis == GBP_COMBO:
+        elif axis == COMBO:
+            images = [image for image in self.images if image.variable_axis in (COMBO,)]
+        elif axis == ALL:
             images = self.images
 
         # create plots
-        max_num_images = math.ceil(len(images)/4)
-        dpi = 72
-        width_px = 1080
-        width_in = width_px/dpi
-        height_in = (width_in / 4) * max_num_images
-        fig, axes = plt.subplots(nrows=max_num_images, ncols=4, figsize=(width_in, height_in))
+        max_num_images = math.ceil(len(images) / 5)
+        fig, axes = plt.subplots(nrows=max_num_images, ncols=5)
         for mpl_axis, wl_image in zip_longest(axes.flatten(), images):
+            # plt.figure(str(wl_image))
             plot_image(wl_image, mpl_axis)
 
         # set titles
-        fig.suptitle(f"{axis} images", fontsize=14, y=1)
+        fig.suptitle(f"{axis}", fontsize=8, y=1)
         plt.tight_layout()
         if show:
             plt.show()
 
-    @argue.options(axis=(GANTRY, COLLIMATOR, COUCH, GBP_COMBO, GB_COMBO))
+    @argue.options(axis=(GANTRY, COLLIMATOR, COUCH, COMBO, ALL))
     def save_images(self, filename: str, axis: str=GANTRY, **kwargs):
         """Save the figure of `plot_images()` to file. Keyword arguments are passed to `matplotlib.pyplot.savefig()`.
         Parameters
@@ -454,32 +459,32 @@ class WinstonLutz:
         plt.savefig(filename, **kwargs)
 
     def plot_summary(self, show: bool=True):
-        """Plot a summary figure showing the gantry sag and wobble plots of the three axes."""
-        plt.figure(figsize=(11, 9))
-        grid = (3, 6)
-        gantry_sag_ax = plt.subplot2grid(grid, (0, 0), colspan=3)
-        self._plot_deviation(GANTRY, gantry_sag_ax, show=False)
-        epid_sag_ax = plt.subplot2grid(grid, (0, 3), colspan=3)
-        self._plot_deviation(EPID, epid_sag_ax, show=False)
-        if self._get_images((COLLIMATOR, REFERENCE))[0] > 1:
-            coll_sag_ax = plt.subplot2grid(grid, (1, 0), colspan=3)
-            self._plot_deviation(COLLIMATOR, coll_sag_ax, show=False)
-        if self._get_images((COUCH, REFERENCE))[0] > 1:
-            couch_sag_ax = plt.subplot2grid(grid, (1, 3), colspan=3)
-            self._plot_deviation(COUCH, couch_sag_ax, show=False)
-
-        for axis, axnum in zip((GANTRY, COLLIMATOR, COUCH), (0, 2, 4)):
-            if self._get_images((axis, REFERENCE))[0] > 1:
-                ax = plt.subplot2grid(grid, (2, axnum), colspan=2)
-                self.plot_axis_images(axis=axis, ax=ax, show=False)
-        if show:
-            plt.tight_layout()
-            plt.show()
+        # """Plot a summary figure showing the gantry sag and wobble plots of the three axes."""
+        # plt.figure(figsize=(11, 9))
+        # grid = (3, 6)
+        # gantry_sag_ax = plt.subplot2grid(grid, (0, 0), colspan=3)
+        # self._plot_deviation(GANTRY, gantry_sag_ax, show=False)
+        # epid_sag_ax = plt.subplot2grid(grid, (0, 3), colspan=3)
+        # self._plot_deviation(EPID, epid_sag_ax, show=False)
+        # if self._get_images((COLLIMATOR, REFERENCE))[0] > 1:
+        #     coll_sag_ax = plt.subplot2grid(grid, (1, 0), colspan=3)
+        #     self._plot_deviation(COLLIMATOR, coll_sag_ax, show=False)
+        # if self._get_images((COUCH, REFERENCE))[0] > 1:
+        #     couch_sag_ax = plt.subplot2grid(grid, (1, 3), colspan=3)
+        #     self._plot_deviation(COUCH, couch_sag_ax, show=False)
+        #
+        # for axis, axnum in zip((GANTRY, COLLIMATOR, COUCH), (0, 2, 4)):
+        #     if self._get_images((axis, REFERENCE))[0] > 1:
+        #         ax = plt.subplot2grid(grid, (2, axnum), colspan=2)
+        #         self.plot_axis_images(axis=axis, ax=ax, show=False)
+        # if show:
+        #     plt.tight_layout()
+        #     plt.show()
 
     def save_summary(self, filename: str, **kwargs):
         """Save the summary image."""
         self.plot_summary(show=False)
-        plt.tight_layout()
+        # plt.tight_layout()
         plt.savefig(filename, **kwargs)
 
     def results(self, as_list: bool=False) -> str:
@@ -535,27 +540,49 @@ class WinstonLutz:
         plt.ioff()
         title = "Winston-Lutz Analysis"
         canvas = pdf.PylinacCanvas(filename, page_title=title, metadata=metadata)
-        text = self.results(as_list=True)
-        canvas.add_text(text=text, location=(7, 25.5))
+        avg_sid = np.mean([image.metadata.RTImageSID for image in self.images])
+        text = ['Winston-Lutz results:',
+                f'Average SID (mm): {avg_sid:2.0f}',
+                f'Number of images: {len(self.images)}',
+                f'Maximum distance to BB (mm): {self.cax2bb_distance("max"):2.2f}',
+                f'Median distances to BB (mm): {self.cax2bb_distance("median"):2.2f}',
+                f'3D Target Positions (mm): {self.bb_shift_instructions()}'
+
+                ]
+        if self._contains_axis_images(COLLIMATOR):
+            text.append(f'Collimator 2D isocenter diameter (mm): {self.collimator_iso_size:2.2f}')
+        if self._contains_axis_images(COUCH):
+            text.append(f'Couch 2D isocenter diameter (mm): {self.couch_iso_size:2.2f}')
+        canvas.add_text(text=text, location=(1, 25.5))
+
         # draw summary image on 1st page
         data = io.BytesIO()
-        self.save_summary(data, figsize=(8, 8))
-        canvas.add_image(image_data=data, location=(2, 3), dimensions=(16, 16))
+        self.save_summary(data, figsize=(10, 10))
+        canvas.add_image(image_data=data, location=(2, 3), dimensions=(18, 18))
+
         if notes is not None:
-            canvas.add_text(text="Notes:", location=(1, 4.5), font_size=14)
+            canvas.add_text(text="Notes:", location=(1, 4.5), font_size=8)
             canvas.add_text(text=notes, location=(1, 4))
-        # add more pages showing individual axis images
-        for ax in (GANTRY, COLLIMATOR, COUCH, GBP_COMBO):
-            if self._contains_axis_images(ax):
-                canvas.add_new_page()
-                data = io.BytesIO()
-                self.save_images(data, axis=ax, figsize=(10, 10))
-                canvas.add_image(data, location=(2, 7), dimensions=(18, 18))
 
-        canvas.finish()
+            # for ax in (GANTRY, COLLIMATOR, COUCH, COMBO):
+            for ax in (COUCH, COMBO):
+                if self._contains_axis_images(ax):
+                    # canvas.add_new_page()
+                    data2 = io.BytesIO()
+                    self.save_images(data2, axis=ax)
+                    canvas.add_image(data2, location=(1, 5), dimensions=(15, 15))
 
-        if open_file:
-            open_path(filename)
+            # for ax in (COUCH, COLLIMATOR):
+            #     if self._contains_axis_images(ax):
+            #         #canvas.add_new_page()
+            #         data3 = io.BytesIO()
+            #         self.save_images(data3, axis=ax, figsize=(10, 10))
+            #         canvas.add_image(data3, location=(1, 0.5), dimensions=(13, 11))
+
+            canvas.finish()
+
+            if open_file:
+                open_path(filename)
 
     def _contains_axis_images(self, axis: str=GANTRY) -> bool:
         """Return whether or not the set of WL images contains images pertaining to a given axis"""
@@ -709,9 +736,9 @@ class WLImage(image.LinacDicomImage):
         """The couch angle converted from IEC 61217 scale to "Varian" scale. Note that any new Varian machine uses 61217."""
         #  convert to Varian scale per Low paper scale
         if super().couch_angle > 250:
-            return 2*270-super().couch_angle
+            return 360-super().couch_angle
         else:
-            return 180 - super().couch_angle
+            return 360 - super().couch_angle
 
     @property
     def cax2bb_vector(self) -> Vector:
@@ -749,18 +776,24 @@ class WLImage(image.LinacDicomImage):
             Whether to clear the figure first before drawing.
         """
         ax = super().plot(ax=ax, show=False, clear_fig=clear_fig)
-        ax.plot(self.field_cax.x, self.field_cax.y, 'gs', ms=8)
-        ax.plot(self.bb.x, self.bb.y, 'ro', ms=8)
-        ax.plot(self.epid.x, self.epid.y, 'b+', ms=8)
+        # ax.plot(self.field_cax.x, self.field_cax.y, 'gs', ms=4)
+        ax.plot(self.bb.x, self.bb.y, 'r+', ms=4)
+        ax.plot(self.epid.x, self.epid.y, 'b+', ms=4)
         ax.set_ylim([self.rad_field_bounding_box[0], self.rad_field_bounding_box[1]])
         ax.set_xlim([self.rad_field_bounding_box[2], self.rad_field_bounding_box[3]])
-        ax.set_yticklabels([])
-        ax.set_xticklabels([])
-        ax.set_title('\n'.join(wrap(self.file, 30)), fontsize=10)
-        ax.set_xlabel(f"G={self.gantry_angle:.0f}, B={self.collimator_angle:.0f}, P={self.couch_angle:.0f}")
-        ax.set_ylabel(f"CAX to BB: {self.cax2bb_distance:3.2f}mm")
+        # ax.set_yticklabels([])
+        # ax.set_xticklabels([])
+        ax.set_title(self.file, fontsize=6)
+        ax.set_xlabel(f"\u0394(mm) = {((self.field_cax.x - self.bb.x) / self.dpmm):3.2f} \n G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360 - self.couch_angle:.0f}",
+                      fontsize=8)
+        ax.yaxis.set_label_position("right")
+        ax.set_ylabel(f"\u0394(mm) = {((self.field_cax.y - self.bb.y) / self.dpmm):3.2f} \n CAX to BB: {self.cax2bb_distance:3.2f}mm",fontsize=8)
+
+        # print(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}","CAX to BB, X coord", (self.field_cax.x-self.bb.x)/self.dpmm)
+        # print(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}","CAX to BB, Y coord", (self.field_cax.y - self.bb.y) / self.dpmm)
+
         if show:
-            plt.show()
+                plt.show()
         return ax
 
     def save_plot(self, filename: str, **kwargs):
@@ -784,15 +817,15 @@ class WLImage(image.LinacDicomImage):
         if G0 and B0 and not P0:
             return COUCH
         elif G0 and P0 and not B0:
-            return COLLIMATOR
+            return COMBO
         elif P0 and B0 and not G0:
             return GANTRY
         elif P0 and B0 and G0:
             return REFERENCE
         elif P0:
-            return GB_COMBO
+            return COMBO
         else:
-            return GBP_COMBO
+            return COMBO
 
 
 def is_symmetric(logical_array: np.ndarray) -> bool:

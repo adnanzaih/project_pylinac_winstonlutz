@@ -9,7 +9,7 @@ wl = WinstonLutz(my_directory)
 
 #results
 # plot all the images
-#wl.plot_images()
+wl.plot_images()
 print(wl.bb_shift_instructions())
 # print to PDF
 wl.publish_pdf('Report.pdf')

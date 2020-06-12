@@ -21,7 +21,6 @@ import io
 import math
 import os.path as osp
 from typing import Union, List, Tuple
-from textwrap import wrap
 from scipy.ndimage import gaussian_filter
 
 import argue
@@ -404,7 +403,7 @@ class WinstonLutz:
             plt.show()
 
     @argue.options(axis=(GANTRY, COLLIMATOR, COUCH, COMBO, ALL))
-    def plot_images(self, axis: str=GANTRY, show: bool=True):
+    def plot_images(self, axis: str=ALL, show: bool=True):
         """Plot a grid of all the images acquired.
         Four columns are plotted with the titles showing which axis that column represents.
         Parameters
@@ -459,7 +458,7 @@ class WinstonLutz:
         plt.savefig(filename, **kwargs)
 
     def plot_summary(self, show: bool=True):
-        # """Plot a summary figure showing the gantry sag and wobble plots of the three axes."""
+        """Plot a summary figure showing the gantry sag and wobble plots of the three axes."""
         # plt.figure(figsize=(11, 9))
         # grid = (3, 6)
         # gantry_sag_ax = plt.subplot2grid(grid, (0, 0), colspan=3)
@@ -646,7 +645,8 @@ class WLImage(image.LinacDicomImage):
         edges
             The bounding box of the field, plus a small margin.
         """
-        min, max = np.percentile(self.array, [5, 99.9])
+        #min, max = np.percentile(self.array, [5, 99.9])
+        min, max = np.percentile(gaussian_filter(self.array, sigma=6), [5, 99.9])
         threshold_img = self.as_binary((max - min)/2 + min)
         filled_img = ndimage.binary_fill_holes(threshold_img)
         # clean single-pixel noise from outside field
@@ -669,7 +669,8 @@ class WLImage(image.LinacDicomImage):
             The weighted-pixel value location of the BB.
         """
         # get initial starting conditions
-        hmin, hmax = np.percentile(self.array, [5, 99.9])
+        #hmin, hmax = np.percentile(self.array, [5, 99.9])
+        hmin, hmax = np.percentile(gaussian_filter(self.array, sigma=6), [5, 99.9])
         spread = hmax - hmin
         max_thresh = hmax
         lower_thresh = hmax - spread / 1.5
@@ -817,13 +818,11 @@ class WLImage(image.LinacDicomImage):
         if G0 and B0 and not P0:
             return COUCH
         elif G0 and P0 and not B0:
-            return COMBO
+            return COMBO  # return COLLIMATOR
         elif P0 and B0 and not G0:
             return GANTRY
         elif P0 and B0 and G0:
             return REFERENCE
-        elif P0:
-            return COMBO
         else:
             return COMBO
 

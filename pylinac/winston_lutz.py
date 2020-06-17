@@ -866,6 +866,7 @@ class WLImage(image.LinacDicomImage):
     def save_plot(self, filename: str, **kwargs):
         """Save the image plot to file."""
         self.plot(show=False)
+
         plt.savefig(filename, **kwargs)
 
     @property

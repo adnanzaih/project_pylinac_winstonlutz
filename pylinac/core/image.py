@@ -789,7 +789,7 @@ class LinacDicomImage(DicomImage):
     @property
     def winstonLutz_MU (self) -> NumberLike:
         """MU of the irradiation."""
-        #print(self.metadata.ExposureSequence[0]['3002', '0032'].value)
+
         return self.metadata.ExposureSequence[0]['3002', '0032'].value
 
     @property

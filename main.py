@@ -2,7 +2,9 @@ from pylinac import WinstonLutz
 
 
 
-my_directory = '/Users/adnanhafeez/Documents/TBCC Work/PyLinac Project/WL/2020_01_27/U6/WL/Z20150323'
+my_directory = '/Users/adnanhafeez/Documents/TBCC Work/PyLinac Project/Data/WL Data/u3/2019_11_29/QA Winston-Lutz U3'
 wl = WinstonLutz(my_directory)
 
-print((wl.plot_deltas()).keys())
+wl.plot_images()
+print(wl.results())
+print(wl.plot_deltas())

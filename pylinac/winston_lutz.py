@@ -306,6 +306,29 @@ class WinstonLutz:
         elif metric == 'median':
             return np.median([image.cax2bb_distance for image in self.images])
 
+
+    def deltaList(self, metric: str='max') -> float:
+        x = []
+        y = []
+        '''
+        @property
+        def deltaList(self) -> float:
+            deltaList = []
+            deltaList.append((self.field_cax.x - self.bb.x) / self.dpmm)
+            deltaList.append((self.field_cax.y - self.bb.y) / self.dpmm)
+            return deltaList
+        '''
+        """The distance in mm between the CAX and BB for all images according to the given metric.
+        Parameters
+        ----------
+        metric : {'max', 'median'}
+            The metric of distance to use.
+        """
+
+        x.append((image.maximum_delta_x for image in self.images))
+        y.append((image.maximum_delta_y for image in self.images))
+        return x,y
+
     def cax2epid_distance(self, metric: str='max') -> float:
         """The distance in mm between the CAX and EPID center pixel for all images according to the given metric.
         Parameters
@@ -548,14 +571,33 @@ class WinstonLutz:
         as_list : bool
             Whether to return as a list of strings vs single string. Pretty much for internal usage.
         """
+        myListx = self.deltaList()[0]
+        myListx = [tuple(float(y) for y in x) for x in myListx]
+
+        myListy = self.deltaList()[1]
+        myListy = [tuple(float(z) for z in k) for k in myListy]
+
+        #print("\n".join(map(str,myListx)))
+        #print("\n".join(map(str, myListy)))
+
+        delta_list = list(myListx[0] + myListy[0])
+        print(delta_list)
+        xs = np.array(delta_list)
+        xs_abs = np.abs(xs)
+        max_index = np.argmax(xs_abs)
+        x = xs[max_index]
+
+        #print("Maximum Delta: ", x)
+
         num_gantry_imgs = self._get_images(axis=(GANTRY, REFERENCE))[0]
-        num_gantry_coll_imgs = self._get_images(axis=(GANTRY, COLLIMATOR, GB_COMBO, REFERENCE))[0]
+        num_gantry_coll_imgs = self._get_images(axis=(GANTRY, COLLIMATOR, COMBO, REFERENCE))[0]
         num_coll_imgs = self._get_images(axis=(COLLIMATOR, REFERENCE))[0]
         num_couch_imgs = self._get_images(axis=(COUCH, REFERENCE))[0]
         num_imgs = len(self.images)
         result = ["Winston-Lutz Analysis",
                   "=================================",
                   f"Number of images: {num_imgs}",
+                  f"Maximum Delta: {x:.2f}mm",
                   f"Maximum 2D CAX->BB distance: {self.cax2bb_distance('max'):.2f}mm",
                   f"Median 2D CAX->BB distance: {self.cax2bb_distance('median'):.2f}mm",
                   f"Shift to iso: facing gantry, move BB: {self.bb_shift_instructions()}",
@@ -820,6 +862,17 @@ class WLImage(image.LinacDicomImage):
         """The scalar distance in mm from the CAX to the EPID center pixel"""
         return self.field_cax.distance_to(self.epid) / self.dpmm
 
+    @property
+    def maximum_delta_x(self) -> float:
+        x_delta = ((self.field_cax.x - self.bb.x) / self.dpmm)
+        #print(x_delta)
+        return x_delta
+
+    @property
+    def maximum_delta_y(self) -> float:
+        y_delta = ((self.field_cax.y - self.bb.y) / self.dpmm)
+        return y_delta
+
     def plot(self, ax=None, show=True, clear_fig=False):
         """Plot the image, zoomed-in on the radiation field, along with the detected
         BB location and field CAX location.
@@ -848,18 +901,20 @@ class WLImage(image.LinacDicomImage):
 
         # print(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}","CAX to BB, X coord", (self.field_cax.x-self.bb.x)/self.dpmm)
         # print(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}","CAX to BB, Y coord", (self.field_cax.y - self.bb.y) / self.dpmm)
-
+        self.maximum_delta_x
+        self.maximum_delta_y
         #print(f"G{self.gantry_angle:.0f}C{self.collimator_angle:.0f}T{self.couch_angle_varian_scale:.0f}: Total Delta {self.cax2bb_distance:3.2f}mm")
         #print(f"G{self.gantry_angle:.0f}C{self.collimator_angle:.0f}T{self.couch_angle_varian_scale:.0f}: Total Delta {self.cax2bb_distance:3.2f}")
-
+        #print("x:",(self.field_cax.x - self.bb.x) / self.dpmm)
+        #print("y:", (self.field_cax.y - self.bb.y) / self.dpmm)
 
         if show:
                 plt.show()
         return ax
 
-
     def totaldeltas(self, ax=None, show=True, clear_fig=False):
         """Adnans modification"""
+        #("G{}C{}T{},x:{},y:{}").format(round(self.gantry_angle),round(self.collimator_angle),round(self.couch_angle_varian_scale),((self.field_cax.x - self.bb.x) / self.dpmm),((self.field_cax.y - self.bb.y) / self.dpmm))
         return ("G{}C{}T{}".format(round(self.gantry_angle), round(self.collimator_angle), round(self.couch_angle_varian_scale))), float(round(self.cax2bb_distance,2)),self.winstonLutz_MU
 
 

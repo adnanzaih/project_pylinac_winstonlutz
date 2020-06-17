@@ -773,6 +773,7 @@ class LinacDicomImage(DicomImage):
     gantry_keyword = 'Gantry'
     collimator_keyword = 'Coll'
     couch_keyword = 'Couch'
+    mu_keyword = 'Meterset'
 
     _use_filenames: bool
 
@@ -784,6 +785,12 @@ class LinacDicomImage(DicomImage):
     def gantry_angle(self) -> NumberLike:
         """Gantry angle of the irradiation."""
         return self._get_axis(self.gantry_keyword.lower(), 'GantryAngle')
+
+    @property
+    def winstonLutz_MU (self) -> NumberLike:
+        """MU of the irradiation."""
+        #print(self.metadata.ExposureSequence[0]['3002', '0032'].value)
+        return self.metadata.ExposureSequence[0]['3002', '0032'].value
 
     @property
     def collimator_angle(self) -> NumberLike:

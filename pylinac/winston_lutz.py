@@ -237,6 +237,7 @@ class WinstonLutz:
         delta = B.dot(epsilon)  # equation 9
         return Vector(x=delta[1][0], y=-delta[0][0], z=-delta[2][0])
 
+
     def bb_shift_instructions(self, couch_vrt: float=None, couch_lng: float=None, couch_lat: float=None) -> str:
         """Returns a string describing how to shift the BB to the radiation isocenter looking from the foot of the couch.
         Optionally, the current couch values can be passed in to get the new couch values. If passing the current
@@ -254,7 +255,7 @@ class WinstonLutz:
         x_dir = 'LEFT -' if sv.x < 0 else 'RIGHT +'
         y_dir = 'IN +' if sv.y > 0 else 'OUT -'
         z_dir = 'UP +' if sv.z < 0 else 'DOWN -'
-        move = f"{x_dir} {abs(sv.x):2.2f}mm; {y_dir} {abs(sv.y):2.2f}mm; {z_dir} {abs(sv.z):2.2f}mm"
+        move = f"\033[92m {x_dir} {abs(sv.x):2.2f}mm; {y_dir} {abs(sv.y):2.2f}mm; {z_dir} {abs(sv.z):2.2f}mm"
         if all(val is not None for val in [couch_vrt, couch_lat, couch_lng]):
             new_lat = round(couch_lat + sv.x/10, 2)
             new_vrt = round(couch_vrt + sv.z/10, 2)
@@ -446,6 +447,60 @@ class WinstonLutz:
         if show:
             plt.show()
 
+
+    @argue.options(axis=(GANTRY, COLLIMATOR, COUCH, COMBO, ALL))
+    def plot_deltas(self, axis: str = ALL, show: bool = False):
+        adnan = {}
+        """Plot a grid of all the images acquired.
+        Four columns are plotted with the titles showing which axis that column represents.
+        Parameters
+        ----------
+        axis : {'Gantry', 'Collimator', 'Couch', 'Combo', 'All'}
+        show : bool
+            Whether to show the image.
+        """
+
+        def plot_image2(image, axis):
+            """Helper function to plot a WLImage to an axis."""
+            a, b, c = [], [], []
+            if image is None:
+                axis.set_frame_on(False)
+                axis.axis('off')
+            else:
+                plt.close()
+                a, b, c = image.totaldeltas(ax=axis, show=False)
+                #print(a,b)
+            return a,b,c
+
+
+        # get axis images
+        if axis == GANTRY:
+            images = [image for image in self.images if image.variable_axis in (GANTRY, REFERENCE)]
+        elif axis == COLLIMATOR:
+            images = [image for image in self.images if image.variable_axis in (COLLIMATOR, REFERENCE)]
+        elif axis == COUCH:
+            images = [image for image in self.images if image.variable_axis in (COUCH, REFERENCE)]
+        elif axis == COMBO:
+            images = [image for image in self.images if image.variable_axis in (COMBO,)]
+        elif axis == ALL:
+            images = self.images
+
+        # create plots
+        max_num_images = math.ceil(len(images) / 5)
+        fig, axes = plt.subplots(nrows=max_num_images, ncols=5)
+        for mpl_axis, wl_image in zip_longest(axes.flatten(), images):
+            # plt.figure(str(wl_image))
+            c = plot_image2(wl_image, mpl_axis)[0]
+            d = plot_image2(wl_image, mpl_axis)[1]
+            e = plot_image2(wl_image, mpl_axis)[2]
+            if c != '[]' and d != []:
+                adnan["{}".format(c)] = d
+                adnan["MU"] = e
+            else:
+                continue
+        return adnan
+
+
     @argue.options(axis=(GANTRY, COLLIMATOR, COUCH, COMBO, ALL))
     def save_images(self, filename: str, axis: str=GANTRY, **kwargs):
         """Save the figure of `plot_images()` to file. Keyword arguments are passed to `matplotlib.pyplot.savefig()`.
@@ -540,6 +595,7 @@ class WinstonLutz:
         title = "Winston-Lutz Analysis"
         canvas = pdf.PylinacCanvas(filename, page_title=title, metadata=metadata)
         avg_sid = np.mean([image.metadata.RTImageSID for image in self.images])
+
         text = ['Winston-Lutz results:',
                 f'Average SID (mm): {avg_sid:2.0f}',
                 f'Number of images: {len(self.images)}',
@@ -793,9 +849,19 @@ class WLImage(image.LinacDicomImage):
         # print(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}","CAX to BB, X coord", (self.field_cax.x-self.bb.x)/self.dpmm)
         # print(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}","CAX to BB, Y coord", (self.field_cax.y - self.bb.y) / self.dpmm)
 
+        #print(f"G{self.gantry_angle:.0f}C{self.collimator_angle:.0f}T{self.couch_angle_varian_scale:.0f}: Total Delta {self.cax2bb_distance:3.2f}mm")
+        #print(f"G{self.gantry_angle:.0f}C{self.collimator_angle:.0f}T{self.couch_angle_varian_scale:.0f}: Total Delta {self.cax2bb_distance:3.2f}")
+
+
         if show:
                 plt.show()
         return ax
+
+
+    def totaldeltas(self, ax=None, show=True, clear_fig=False):
+        """Adnans modification"""
+        return ("G{}C{}T{}".format(round(self.gantry_angle), round(self.collimator_angle), round(self.couch_angle_varian_scale))), float(round(self.cax2bb_distance,2)),self.winstonLutz_MU
+
 
     def save_plot(self, filename: str, **kwargs):
         """Save the image plot to file."""

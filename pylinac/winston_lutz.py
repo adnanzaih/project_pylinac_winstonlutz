@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import ndimage, optimize, linalg
 from skimage import measure
+import matplotlib.pyplot as plt
 
 from .core import image
 from .core.geometry import Point, Line, Vector, cos, sin
@@ -743,8 +744,10 @@ class WLImage(image.LinacDicomImage):
         edges
             The bounding box of the field, plus a small margin.
         """
-        #min, max = np.percentile(self.array, [5, 99.9])
-        min, max = np.percentile(gaussian_filter(self.array, sigma=6), [5, 99.9])
+
+
+        min, max = np.percentile(self.array, [5, 99.9])
+        #min, max = np.percentile(gaussian_filter(self.array, sigma=6), [5, 99.9])
         threshold_img = self.as_binary((max - min)/2 + min)
         filled_img = ndimage.binary_fill_holes(threshold_img)
         # clean single-pixel noise from outside field
@@ -754,7 +757,7 @@ class WLImage(image.LinacDicomImage):
         edges[1] += 10
         edges[2] -= 10
         edges[3] += 10
-        coords = ndimage.measurements.center_of_mass(filled_img)
+        coords = ndimage.measurements.center_of_mass(ndimage.median_filter(filled_img,5))
         p = Point(x=coords[-1], y=coords[0])
         return p, edges
 
@@ -767,8 +770,9 @@ class WLImage(image.LinacDicomImage):
             The weighted-pixel value location of the BB.
         """
         # get initial starting conditions
-        #hmin, hmax = np.percentile(self.array, [5, 99.9])
+        #hmin, hmax = np.percentile
         hmin, hmax = np.percentile(gaussian_filter(self.array, sigma=6), [5, 99.9])
+        #hmin, hmax = np.percentile(ndimage.median_filter(self.array, 3), [5, 99.9])
         spread = hmax - hmin
         max_thresh = hmax
         lower_thresh = hmax - spread / 1.5
@@ -797,11 +801,16 @@ class WLImage(image.LinacDicomImage):
                 found = True
 
         # determine the center of mass of the BB
+        #inv_img = image.load(ndimage.median_filter(self.array, 8)) #remove noise
         inv_img = image.load(self.array)
+
         # we invert so BB intensity increases w/ attenuation
         inv_img.check_inversion_by_histogram(percentiles=(99.99, 50, 0.01))
-        bb_rprops = measure.regionprops(bw_bb_img, intensity_image=inv_img)[0]
+        bb_rprops = measure.regionprops(bw_bb_img, intensity_image=(inv_img))[0]
+
+
         return Point(bb_rprops.weighted_centroid[1], bb_rprops.weighted_centroid[0])
+        #return Point(ndimage.measurements.center_of_mass(bw_bb_img)[1], ndimage.measurements.center_of_mass(bw_bb_img)[0])
 
     @property
     def epid(self) -> Point:

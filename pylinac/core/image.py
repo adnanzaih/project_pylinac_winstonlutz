@@ -34,6 +34,7 @@ MM_PER_INCH = 25.4
 ImageLike = Union['DicomImage', 'ArrayImage', 'FileImage', 'LinacDicomImage']
 
 
+
 def prepare_for_classification(path: str):
     """Load and resize the image and return as flattened numpy array. Used when converting an image into
     a classification feature dataset"""

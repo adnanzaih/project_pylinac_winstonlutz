@@ -37,6 +37,8 @@ from .core.mask import filled_area_ratio, bounding_box
 from .core import pdf
 from .core.utilities import is_close, open_path
 
+
+
 GANTRY = 'Gantry'
 COLLIMATOR = ''
 COUCH = 'Couch'
@@ -459,10 +461,10 @@ class WinstonLutz:
             images = self.images
 
         # create plots
-        max_num_images = math.ceil(len(images) / 5)
-        fig, axes = plt.subplots(nrows=max_num_images, ncols=5)
+        max_num_images = math.ceil(len(images) / 4)
+        fig, axes = plt.subplots(nrows=max_num_images, ncols=4)
         for mpl_axis, wl_image in zip_longest(axes.flatten(), images):
-            # plt.figure(str(wl_image))
+            #plt.figure(str(wl_image))
             plot_image(wl_image, mpl_axis)
 
         # set titles
@@ -487,14 +489,15 @@ class WinstonLutz:
         def plot_image2(image, axis):
             """Helper function to plot a WLImage to an axis."""
             a, b, c = [], [], []
+            d, e = [], []
             if image is None:
                 axis.set_frame_on(False)
                 axis.axis('off')
             else:
                 plt.close()
-                a, b, c = image.totaldeltas(ax=axis, show=False)
+                a, b, c, d, e = image.totaldeltas(ax=axis, show=False)
                 #print(a,b)
-            return a,b,c
+            return a,b,c,d,e
 
 
         # get axis images
@@ -517,16 +520,20 @@ class WinstonLutz:
             c = plot_image2(wl_image, mpl_axis)[0]
             d = plot_image2(wl_image, mpl_axis)[1]
             e = plot_image2(wl_image, mpl_axis)[2]
+            f = plot_image2(wl_image, mpl_axis)[3]
+            g = plot_image2(wl_image, mpl_axis)[4]
             if c != '[]' and d != []:
                 adnan["{}".format(c)] = d
                 adnan["MU"] = e
+                adnan[c+" x delta"] = f
+                adnan[c+" y delta"] = g
             else:
                 continue
         return adnan
 
 
     @argue.options(axis=(GANTRY, COLLIMATOR, COUCH, COMBO, ALL))
-    def save_images(self, filename: str, axis: str=GANTRY, **kwargs):
+    def save_images(self, filename: str, axis: str=ALL, **kwargs):
         """Save the figure of `plot_images()` to file. Keyword arguments are passed to `matplotlib.pyplot.savefig()`.
         Parameters
         ----------
@@ -924,7 +931,7 @@ class WLImage(image.LinacDicomImage):
     def totaldeltas(self, ax=None, show=True, clear_fig=False):
         """Adnans modification"""
         #("G{}C{}T{},x:{},y:{}").format(round(self.gantry_angle),round(self.collimator_angle),round(self.couch_angle_varian_scale),((self.field_cax.x - self.bb.x) / self.dpmm),((self.field_cax.y - self.bb.y) / self.dpmm))
-        return ("G{}C{}T{}".format(round(self.gantry_angle), round(self.collimator_angle), round(self.couch_angle_varian_scale))), float(round(self.cax2bb_distance,2)),self.winstonLutz_MU
+        return ("G{}C{}T{}".format(round(self.gantry_angle), round(self.collimator_angle), round(self.couch_angle_varian_scale))), float(round(self.cax2bb_distance,2)),self.winstonLutz_MU, float(round(((self.field_cax.x - self.bb.x) / self.dpmm),2)),float(round(((self.field_cax.y - self.bb.y) / self.dpmm),2))
 
 
     def save_plot(self, filename: str, **kwargs):

@@ -460,6 +460,7 @@ class WinstonLutz:
         elif axis == ALL:
             images = self.images
 
+
         # create plots
         max_num_images = math.ceil(len(images) / 4)
         fig, axes = plt.subplots(nrows=max_num_images, ncols=4)
@@ -472,6 +473,7 @@ class WinstonLutz:
         plt.tight_layout()
         if show:
             plt.show()
+
 
 
     @argue.options(axis=(GANTRY, COLLIMATOR, COUCH, COMBO, ALL))

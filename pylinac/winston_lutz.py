@@ -754,6 +754,13 @@ class WLImage(image.LinacDicomImage):
             The bounding box of the field, plus a small margin.
         """
 
+        def crop_center(img, cropx, cropy):
+            y, x = self.shape
+            startx = x // 2 - (cropx // 2)
+            starty = y // 2 - (cropy // 2)
+            return img[starty:starty + cropy, startx:startx + cropx]
+
+        self.array = crop_center(self.array, 100, 100)
 
         min, max = np.percentile(self.array, [5, 99.9])
         #min, max = np.percentile(gaussian_filter(self.array, sigma=6), [5, 99.9])
@@ -768,6 +775,13 @@ class WLImage(image.LinacDicomImage):
         edges[3] += 10
         coords = ndimage.measurements.center_of_mass(ndimage.median_filter(filled_img,5))
         p = Point(x=coords[-1], y=coords[0])
+        plt.figure()
+        plt.title("G{}C{}T{} File:{}".format(round(self.gantry_angle, 0), round(self.collimator_angle, 0),
+                                             round(self.couch_angle_varian_scale, 0),
+                                             self.file))
+        plt.imshow(self.array)
+        plt.imshow(filled_img,alpha=0.5,cmap='bone')
+        plt.plot(coords[-1],coords[0],'+b')
         return p, edges
 
     def _find_bb(self) -> Point:
@@ -779,7 +793,15 @@ class WLImage(image.LinacDicomImage):
             The weighted-pixel value location of the BB.
         """
         # get initial starting conditions
-        #hmin, hmax = np.percentile
+        def crop_center(img, cropx, cropy):
+            y, x = self.shape
+            startx = x // 2 - (cropx // 2)
+            starty = y // 2 - (cropy // 2)
+            return img[starty:starty + cropy, startx:startx + cropx]
+
+        self.array = crop_center(self.array, 100, 100)
+
+        #hmin, hmax = np.percentile(self.array,[5,99.9])
         hmin, hmax = np.percentile(gaussian_filter(self.array, sigma=6), [5, 99.9])
         #hmin, hmax = np.percentile(ndimage.median_filter(self.array, 3), [5, 99.9])
         spread = hmax - hmin
@@ -817,6 +839,12 @@ class WLImage(image.LinacDicomImage):
         inv_img.check_inversion_by_histogram(percentiles=(99.99, 50, 0.01))
         bb_rprops = measure.regionprops(bw_bb_img, intensity_image=(inv_img))[0]
 
+        plt.figure()
+        plt.title("G{}C{}T{} File:{}".format(round(self.gantry_angle,0), round(self.collimator_angle,0), round(self.couch_angle_varian_scale,0),
+                                             self.file))
+        plt.imshow(self.array)
+        plt.imshow(bw_bb_img, alpha=0.5,cmap='bone')
+        plt.plot(bb_rprops.weighted_centroid[1], bb_rprops.weighted_centroid[0],'+r')
 
         return Point(bb_rprops.weighted_centroid[1], bb_rprops.weighted_centroid[0])
         #return Point(ndimage.measurements.center_of_mass(bw_bb_img)[1], ndimage.measurements.center_of_mass(bw_bb_img)[0])
@@ -904,9 +932,9 @@ class WLImage(image.LinacDicomImage):
             Whether to clear the figure first before drawing.
         """
         ax = super().plot(ax=ax, show=False, clear_fig=clear_fig)
-        # ax.plot(self.field_cax.x, self.field_cax.y, 'gs', ms=4)
+        ax.plot(self.epid.x, self.epid.y, 'gs', ms=4)
         ax.plot(self.bb.x, self.bb.y, 'r+', ms=4)
-        ax.plot(self.epid.x, self.epid.y, 'b+', ms=4)
+        ax.plot(self.field_cax.x, self.field_cax.y, 'b+', ms=4)
         ax.set_ylim([self.rad_field_bounding_box[0], self.rad_field_bounding_box[1]])
         ax.set_xlim([self.rad_field_bounding_box[2], self.rad_field_bounding_box[3]])
         # ax.set_yticklabels([])
@@ -916,7 +944,6 @@ class WLImage(image.LinacDicomImage):
                       fontsize=8)
         ax.yaxis.set_label_position("right")
         ax.set_ylabel(f"\u0394(mm) = {((self.field_cax.y - self.bb.y) / self.dpmm):3.2f} \n CAX to BB: {self.cax2bb_distance:3.2f}mm",fontsize=8)
-
         # print(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}","CAX to BB, X coord", (self.field_cax.x-self.bb.x)/self.dpmm)
         # print(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}","CAX to BB, Y coord", (self.field_cax.y - self.bb.y) / self.dpmm)
         self.maximum_delta_x

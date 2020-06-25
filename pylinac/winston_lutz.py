@@ -36,6 +36,7 @@ from .core.io import TemporaryZipDirectory, get_url, retrieve_demo_file, is_dico
 from .core.mask import filled_area_ratio, bounding_box
 from .core import pdf
 from .core.utilities import is_close, open_path
+import cv2
 
 
 
@@ -776,12 +777,13 @@ class WLImage(image.LinacDicomImage):
         coords = ndimage.measurements.center_of_mass(ndimage.median_filter(filled_img,5))
         p = Point(x=coords[-1], y=coords[0])
         plt.figure()
-        plt.title("G{}C{}T{} File:{}".format(round(self.gantry_angle, 0), round(self.collimator_angle, 0),
+        plt.title("G{} C{} T{} File:{}".format(round(self.gantry_angle, 0), round(self.collimator_angle, 0),
                                              round(self.couch_angle_varian_scale, 0),
                                              self.file))
         plt.imshow(self.array)
         plt.imshow(filled_img,alpha=0.5,cmap='bone')
-        plt.plot(coords[-1],coords[0],'+b')
+        plt.plot(self.epid.x, self.epid.y, 'go')
+        plt.plot(coords[-1],coords[0],'+b',ms=30)
         return p, edges
 
     def _find_bb(self) -> Point:
@@ -838,16 +840,42 @@ class WLImage(image.LinacDicomImage):
         # we invert so BB intensity increases w/ attenuation
         inv_img.check_inversion_by_histogram(percentiles=(99.99, 50, 0.01))
         bb_rprops = measure.regionprops(bw_bb_img, intensity_image=(inv_img))[0]
-
         plt.figure()
-        plt.title("G{}C{}T{} File:{}".format(round(self.gantry_angle,0), round(self.collimator_angle,0), round(self.couch_angle_varian_scale,0),
+        plt.title("G{} C{} T{} File:{}".format(round(self.gantry_angle,0), round(self.collimator_angle,0), round(self.couch_angle_varian_scale,0),
                                              self.file))
         plt.imshow(self.array)
         plt.imshow(bw_bb_img, alpha=0.5,cmap='bone')
-        plt.plot(bb_rprops.weighted_centroid[1], bb_rprops.weighted_centroid[0],'+r')
+        #plt.plot(bb_rprops.weighted_centroid[1], bb_rprops.weighted_centroid[0],'rx')
+        plt.plot(self.epid.x, self.epid.y, 'go')
 
+        def second_bb_finding_method(input):
+            # read the DICOM file
+            d16 = input
+            # rescale original 16 bit image to 8 bit values [0,255]
+            x0 = d16.min()
+            x1 = d16.max()
+            y0 = 0
+            y1 = 255.0
+            i8 = ((d16 - x0) * ((y1 - y0) / (x1 - x0))) + y0
+            # create new array with rescaled values and unsigned 8 bit data type
+            o8 = i8.astype(np.uint8)
+            # apply hough transform
+            circles = cv2.HoughCircles(o8,cv2.HOUGH_GRADIENT, 1, 20, param1 = 50, param2 = 30, minRadius = 0, maxRadius = 10)
+            # place circles and cente rectangle on image
+            if circles is not None:
+                circles = np.round(circles[0, :].astype("int"))
+                for (x, y, r) in circles:
+                    #cv2.circle(output, (x, y), r, (0, 255, 0), 4)
+                    #cv2.rectangle(output, (x - 5, y - 5), (x + 5, y + 5), (0, 128, 255), -1)
+                    #print("x: {}, y: {}".format(x,y))
+                    return x,y
+                #cv2.imshow("output", np.hstack([image8, output]))
+                #cv2.waitKey(0)
+
+        x,y = second_bb_finding_method(self.array)
+        plt.plot(x, y, 'rx')
         return Point(bb_rprops.weighted_centroid[1], bb_rprops.weighted_centroid[0])
-        #return Point(ndimage.measurements.center_of_mass(bw_bb_img)[1], ndimage.measurements.center_of_mass(bw_bb_img)[0])
+        #return Point(x,y)
 
     @property
     def epid(self) -> Point:

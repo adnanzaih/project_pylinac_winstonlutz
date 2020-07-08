@@ -36,7 +36,7 @@ from .core.io import TemporaryZipDirectory, get_url, retrieve_demo_file, is_dico
 from .core.mask import filled_area_ratio, bounding_box
 from .core import pdf
 from .core.utilities import is_close, open_path
-import cv2
+
 
 
 
@@ -211,6 +211,7 @@ class WinstonLutz:
         else:
             return 0
 
+
     @property
     def couch_iso_size(self) -> float:
         """The diameter of the 2D couch isocenter size in mm. Only images where
@@ -256,10 +257,10 @@ class WinstonLutz:
             The current couch lateral position in cm.
         """
         sv = self.bb_shift_vector
-        x_dir = 'LEFT -' if sv.x < 0 else 'RIGHT +'
-        y_dir = 'IN +' if sv.y > 0 else 'OUT -'
-        z_dir = 'UP +' if sv.z < 0 else 'DOWN -'
-        move = f"\033[92m {x_dir} {abs(sv.x):2.2f}mm; {y_dir} {abs(sv.y):2.2f}mm; {z_dir} {abs(sv.z):2.2f}mm"
+        x_dir = 'X -' if sv.x < 0 else 'X +'
+        y_dir = 'Y +' if sv.y > 0 else 'Y -'
+        z_dir = 'Z +' if sv.z < 0 else 'Z -'
+        move = f"{x_dir} {abs(sv.x):2.2f}mm; {y_dir} {abs(sv.y):2.2f}mm; {z_dir} {abs(sv.z):2.2f}mm"
         if all(val is not None for val in [couch_vrt, couch_lat, couch_lng]):
             new_lat = round(couch_lat + sv.x/10, 2)
             new_vrt = round(couch_vrt + sv.z/10, 2)
@@ -295,7 +296,7 @@ class WinstonLutz:
         """The distance in mm between the CAX and BB for all images according to the given metric.
         Parameters
         ----------
-        metric : {'max', 'median'}
+        metric : {'max', 'median', 'mean'}
             The metric of distance to use.
         """
         if metric == 'max':
@@ -309,6 +310,9 @@ class WinstonLutz:
             # return max(image.cax2bb_distance for image in self.images)
         elif metric == 'median':
             return np.median([image.cax2bb_distance for image in self.images])
+
+        elif metric == 'mean':
+            return np.mean([image.cax2bb_distance for image in self.images])
 
 
     def deltaList(self, metric: str='max') -> float:
@@ -331,6 +335,7 @@ class WinstonLutz:
 
         x.append((image.maximum_delta_x for image in self.images))
         y.append((image.maximum_delta_y for image in self.images))
+
         return x,y
 
     def cax2epid_distance(self, metric: str='max') -> float:
@@ -475,8 +480,6 @@ class WinstonLutz:
         if show:
             plt.show()
 
-
-
     @argue.options(axis=(GANTRY, COLLIMATOR, COUCH, COMBO, ALL))
     def plot_deltas(self, axis: str = ALL, show: bool = False):
         adnan = {}
@@ -499,9 +502,7 @@ class WinstonLutz:
             else:
                 plt.close()
                 a, b, c, d, e = image.totaldeltas(ax=axis, show=False)
-                #print(a,b)
-            return a,b,c,d,e
-
+            return a, b, c, d, e
 
         # get axis images
         if axis == GANTRY:
@@ -520,16 +521,21 @@ class WinstonLutz:
         fig, axes = plt.subplots(nrows=max_num_images, ncols=5)
         for mpl_axis, wl_image in zip_longest(axes.flatten(), images):
             # plt.figure(str(wl_image))
-            c = plot_image2(wl_image, mpl_axis)[0]
-            d = plot_image2(wl_image, mpl_axis)[1]
-            e = plot_image2(wl_image, mpl_axis)[2]
-            f = plot_image2(wl_image, mpl_axis)[3]
-            g = plot_image2(wl_image, mpl_axis)[4]
-            if c != '[]' and d != []:
+            c = str(plot_image2(wl_image, mpl_axis)[0])  # G{}C{}T{}
+            d = plot_image2(wl_image, mpl_axis)[1]  # MU
+            e = plot_image2(wl_image, mpl_axis)[2]  # Total Delta
+            f = plot_image2(wl_image, mpl_axis)[3]  # delta x
+            g = plot_image2(wl_image, mpl_axis)[4]  # delta y
+            if (c != '[]' and d != []) and c not in adnan:
                 adnan["{}".format(c)] = d
                 adnan["MU"] = e
-                adnan[c+" x delta"] = f
-                adnan[c+" y delta"] = g
+                adnan[c + " x delta"] = f
+                adnan[c + " y delta"] = g
+            elif (c != '[]' and d != '[]') and c in adnan:
+                adnan["{}(2)".format(c)] = d
+                adnan["MU"] = e
+                adnan[c + "(2) x delta"] = f
+                adnan[c + "(2) y delta"] = g
             else:
                 continue
         return adnan
@@ -573,9 +579,9 @@ class WinstonLutz:
         """Save the summary image."""
         self.plot_summary(show=False)
         # plt.tight_layout()
-        plt.savefig(filename, **kwargs)
+        plt.savefig(filename, dpi=260, **kwargs)
 
-    def results(self, as_list: bool=False) -> str:
+    def results(self, as_list: bool=True) -> str:
         """Return the analysis results summary.
         Parameters
         ----------
@@ -584,21 +590,14 @@ class WinstonLutz:
         """
         myListx = self.deltaList()[0]
         myListx = [tuple(float(y) for y in x) for x in myListx]
-
         myListy = self.deltaList()[1]
         myListy = [tuple(float(z) for z in k) for k in myListy]
 
-        #print("\n".join(map(str,myListx)))
-        #print("\n".join(map(str, myListy)))
-
         delta_list = list(myListx[0] + myListy[0])
-        print(delta_list)
         xs = np.array(delta_list)
         xs_abs = np.abs(xs)
         max_index = np.argmax(xs_abs)
         x = xs[max_index]
-
-        #print("Maximum Delta: ", x)
 
         num_gantry_imgs = self._get_images(axis=(GANTRY, REFERENCE))[0]
         num_gantry_coll_imgs = self._get_images(axis=(GANTRY, COLLIMATOR, COMBO, REFERENCE))[0]
@@ -608,7 +607,8 @@ class WinstonLutz:
         result = ["Winston-Lutz Analysis",
                   "=================================",
                   f"Number of images: {num_imgs}",
-                  f"Maximum Delta: {x:.2f}mm",
+                  f"Maximum 2D CAX->EPID distance: {self.cax2epid_distance('max'):.2f}mm",
+                  f"Maximum Delta: {x:.5f}mm",
                   f"Maximum 2D CAX->BB distance: {self.cax2bb_distance('max'):.2f}mm",
                   f"Median 2D CAX->BB distance: {self.cax2bb_distance('median'):.2f}mm",
                   f"Shift to iso: facing gantry, move BB: {self.bb_shift_instructions()}",
@@ -648,15 +648,27 @@ class WinstonLutz:
         title = "Winston-Lutz Analysis"
         canvas = pdf.PylinacCanvas(filename, page_title=title, metadata=metadata)
         avg_sid = np.mean([image.metadata.RTImageSID for image in self.images])
+        myListx = self.deltaList()[0]
+        myListx = [tuple(float(y) for y in x) for x in myListx]
+        myListy = self.deltaList()[1]
+        myListy = [tuple(float(z) for z in k) for k in myListy]
+
+        delta_list = list(myListx[0] + myListy[0])
+        xs = np.array(delta_list)
+        xs_abs = np.abs(xs)
+        max_index = np.argmax(xs_abs)
+        x = xs[max_index]
 
         text = ['Winston-Lutz results:',
                 f'Average SID (mm): {avg_sid:2.0f}',
                 f'Number of images: {len(self.images)}',
-                f'Maximum distance to BB (mm): {self.cax2bb_distance("max"):2.2f}',
-                f'Median distances to BB (mm): {self.cax2bb_distance("median"):2.2f}',
-                f'3D Target Positions (mm): {self.bb_shift_instructions()}'
-
+                f"Maximum 2D CAX->EPID distance: {self.cax2epid_distance('max'):.2f}mm",
+                f"Maximum Delta: {x:.5f}mm",
+                f"Maximum 2D CAX->BB distance: {self.cax2bb_distance('max'):.2f}mm",
+                f"Median 2D CAX->BB distance: {self.cax2bb_distance('median'):.2f}mm",
+                f"Shift to iso: facing gantry, move BB: {self.bb_shift_instructions()}",
                 ]
+
         if self._contains_axis_images(COLLIMATOR):
             text.append(f'Collimator 2D isocenter diameter (mm): {self.collimator_iso_size:2.2f}')
         if self._contains_axis_images(COUCH):
@@ -776,14 +788,13 @@ class WLImage(image.LinacDicomImage):
         edges[3] += 10
         coords = ndimage.measurements.center_of_mass(ndimage.median_filter(filled_img,5))
         p = Point(x=coords[-1], y=coords[0])
-        plt.figure()
-        plt.title("G{} C{} T{} File:{}".format(round(self.gantry_angle, 0), round(self.collimator_angle, 0),
-                                             round(self.couch_angle_varian_scale, 0),
-                                             self.file))
-        plt.imshow(self.array)
-        plt.imshow(filled_img,alpha=0.5,cmap='bone')
-        plt.plot(self.epid.x, self.epid.y, 'go')
-        plt.plot(coords[-1],coords[0],'+b',ms=30)
+        #plt.figure()
+        #plt.title("G{}C{}T{} File:{}".format(round(self.gantry_angle, 0), round(self.collimator_angle, 0),
+                                             #round(self.couch_angle_varian_scale, 0),
+                                             #self.file))
+       # plt.imshow(self.array)
+        #plt.imshow(filled_img,alpha=0.5,cmap='bone')
+        #plt.plot(coords[-1],coords[0],'+b',ms=40)
         return p, edges
 
     def _find_bb(self) -> Point:
@@ -801,7 +812,7 @@ class WLImage(image.LinacDicomImage):
             starty = y // 2 - (cropy // 2)
             return img[starty:starty + cropy, startx:startx + cropx]
 
-        self.array = crop_center(self.array, 100, 100)
+        #self.array = crop_center(self.array, 100, 100)
 
         #hmin, hmax = np.percentile(self.array,[5,99.9])
         hmin, hmax = np.percentile(gaussian_filter(self.array, sigma=6), [5, 99.9])
@@ -840,42 +851,16 @@ class WLImage(image.LinacDicomImage):
         # we invert so BB intensity increases w/ attenuation
         inv_img.check_inversion_by_histogram(percentiles=(99.99, 50, 0.01))
         bb_rprops = measure.regionprops(bw_bb_img, intensity_image=(inv_img))[0]
-        plt.figure()
-        plt.title("G{} C{} T{} File:{}".format(round(self.gantry_angle,0), round(self.collimator_angle,0), round(self.couch_angle_varian_scale,0),
-                                             self.file))
-        plt.imshow(self.array)
-        plt.imshow(bw_bb_img, alpha=0.5,cmap='bone')
-        #plt.plot(bb_rprops.weighted_centroid[1], bb_rprops.weighted_centroid[0],'rx')
-        plt.plot(self.epid.x, self.epid.y, 'go')
 
-        def second_bb_finding_method(input):
-            # read the DICOM file
-            d16 = input
-            # rescale original 16 bit image to 8 bit values [0,255]
-            x0 = d16.min()
-            x1 = d16.max()
-            y0 = 0
-            y1 = 255.0
-            i8 = ((d16 - x0) * ((y1 - y0) / (x1 - x0))) + y0
-            # create new array with rescaled values and unsigned 8 bit data type
-            o8 = i8.astype(np.uint8)
-            # apply hough transform
-            circles = cv2.HoughCircles(o8,cv2.HOUGH_GRADIENT, 1, 20, param1 = 50, param2 = 30, minRadius = 0, maxRadius = 10)
-            # place circles and cente rectangle on image
-            if circles is not None:
-                circles = np.round(circles[0, :].astype("int"))
-                for (x, y, r) in circles:
-                    #cv2.circle(output, (x, y), r, (0, 255, 0), 4)
-                    #cv2.rectangle(output, (x - 5, y - 5), (x + 5, y + 5), (0, 128, 255), -1)
-                    #print("x: {}, y: {}".format(x,y))
-                    return x,y
-                #cv2.imshow("output", np.hstack([image8, output]))
-                #cv2.waitKey(0)
-
-        x,y = second_bb_finding_method(self.array)
-        plt.plot(x, y, 'rx')
+        #plt.figure()
+        #plt.title("G{}C{}T{} File:{}".format(round(self.gantry_angle,0), round(self.collimator_angle,0), round(self.couch_angle_varian_scale,0),
+                                             #self.file))
+       # plt.imshow(self.array)
+        #plt.imshow(bw_bb_img, alpha=0.5,cmap='bone')
+        #plt.plot(bb_rprops.weighted_centroid[1], bb_rprops.weighted_centroid[0],'xr')
         return Point(bb_rprops.weighted_centroid[1], bb_rprops.weighted_centroid[0])
-        #return Point(x,y)
+
+
 
     @property
     def epid(self) -> Point:
@@ -944,7 +929,7 @@ class WLImage(image.LinacDicomImage):
 
     @property
     def maximum_delta_y(self) -> float:
-        y_delta = ((self.field_cax.y - self.bb.y) / self.dpmm)
+        y_delta = ((self.bb.y - self.field_cax.y) / self.dpmm)
         return y_delta
 
     def plot(self, ax=None, show=True, clear_fig=False):
@@ -971,11 +956,11 @@ class WLImage(image.LinacDicomImage):
         ax.set_xlabel(f"\u0394(mm) = {((self.field_cax.x - self.bb.x) / self.dpmm):3.2f} \n G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360 - self.couch_angle:.0f}",
                       fontsize=8)
         ax.yaxis.set_label_position("right")
-        ax.set_ylabel(f"\u0394(mm) = {((self.field_cax.y - self.bb.y) / self.dpmm):3.2f} \n CAX to BB: {self.cax2bb_distance:3.2f}mm",fontsize=8)
+        ax.set_ylabel(f"\u0394(mm) = {((self.bb.y - self.field_cax.y) / self.dpmm):3.2f} \n CAX to BB: {self.cax2bb_distance:3.2f}mm",fontsize=8)
         # print(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}","CAX to BB, X coord", (self.field_cax.x-self.bb.x)/self.dpmm)
         # print(f"G{self.gantry_angle:.0f}, C{self.collimator_angle:.0f}, T{360-self.couch_angle:.0f}","CAX to BB, Y coord", (self.field_cax.y - self.bb.y) / self.dpmm)
-        self.maximum_delta_x
-        self.maximum_delta_y
+        #self.maximum_delta_x
+        #self.maximum_delta_y
         #print(f"G{self.gantry_angle:.0f}C{self.collimator_angle:.0f}T{self.couch_angle_varian_scale:.0f}: Total Delta {self.cax2bb_distance:3.2f}mm")
         #print(f"G{self.gantry_angle:.0f}C{self.collimator_angle:.0f}T{self.couch_angle_varian_scale:.0f}: Total Delta {self.cax2bb_distance:3.2f}")
         #print("x:",(self.field_cax.x - self.bb.x) / self.dpmm)
@@ -988,7 +973,7 @@ class WLImage(image.LinacDicomImage):
     def totaldeltas(self, ax=None, show=True, clear_fig=False):
         """Adnans modification"""
         #("G{}C{}T{},x:{},y:{}").format(round(self.gantry_angle),round(self.collimator_angle),round(self.couch_angle_varian_scale),((self.field_cax.x - self.bb.x) / self.dpmm),((self.field_cax.y - self.bb.y) / self.dpmm))
-        return ("G{}C{}T{}".format(round(self.gantry_angle), round(self.collimator_angle), round(self.couch_angle_varian_scale))), float(round(self.cax2bb_distance,2)),self.winstonLutz_MU, float(round(((self.field_cax.x - self.bb.x) / self.dpmm),2)),float(round(((self.field_cax.y - self.bb.y) / self.dpmm),2))
+        return ("G{}C{}T{}".format(round(self.gantry_angle), round(self.collimator_angle), round(self.couch_angle_varian_scale))), float(round(self.cax2bb_distance, 2)), self.winstonLutz_MU, float(round(((self.field_cax.x - self.bb.x) / self.dpmm), 2)), float(round(((self.bb.y - self.field_cax.y) / self.dpmm), 2))
 
 
     def save_plot(self, filename: str, **kwargs):

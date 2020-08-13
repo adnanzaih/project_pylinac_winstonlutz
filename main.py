@@ -1,11 +1,8 @@
 from pylinac import WinstonLutz
 
+wl = WinstonLutz.from_zip('/Users/adnanhafeez/Downloads/QA Winston-Lutz U9.zip')
 
-my_directory = '/Users/adnanhafeez/Downloads/Z20130715'
-#my_directory = "/Users/adnanhafeez/Documents/TBCC Work/PyLinac Project/Data/WL Data/Unit 06/2020_01_27/U6/WL/Z20150323"
-wl = WinstonLutz(my_directory)
+for k, v in (wl.plot_deltas()).items():
+    print("{}: {}mm".format(k, v))
 
-wl.plot_images()
-print(wl.results())
-print("----------------------------------------------------------------------------------")
-#print(wl.plot_deltas()["G0C90T315 x delta"])
+wl.publish_pdf("report.pdf", wl)

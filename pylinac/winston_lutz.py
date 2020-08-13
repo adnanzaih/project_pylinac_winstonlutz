@@ -587,13 +587,13 @@ class WinstonLutz:
             f = plot_image2(wl_image, mpl_axis)[3]  # delta x
             g = plot_image2(wl_image, mpl_axis)[4]  # delta y
             if (c != '[]' and d != []) and c not in adnan:
-                adnan["{} (mm)".format(c)] = d
                 adnan["MU"] = e
+                adnan["{} (mm)".format(c)] = d
                 adnan[c + " x delta (mm)"] = f
                 adnan[c + " y delta (mm)"] = g
             elif (c != '[]' and d != '[]') and c in adnan:
-                adnan["{}(2) (mm)".format(c)] = d
                 adnan["MU"] = e
+                adnan["{}(2) (mm)".format(c)] = d
                 adnan[c + "(2) x delta (mm)"] = f
                 adnan[c + "(2) y delta (mm)"] = g
             else:
